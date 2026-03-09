@@ -2,12 +2,12 @@ import os
 from fastapi import FastAPI, UploadFile, File, HTTPException, Body, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import google.generativeai as genai
+from google import genai
 from dotenv import load_dotenv
 
 # Import our utility
 from pdf_utils import extract_text_from_pdf
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from rag_service import generate_answer
@@ -30,14 +30,10 @@ api_key = os.getenv("GOOGLE_API_KEY")
 if not api_key:
     print("Warning: GOOGLE_API_KEY not found in environment variables.")
 
-genai.configure(api_key=api_key)
-# Fallback to gemini-pro if flash is not available
-try:
-    model = genai.GenerativeModel('gemini-2.5-flash')
-except:
-    print("Gemini 2.5 Flash not found, falling back to Gemini Pro")
+client = genai.Client(api_key=api_key)
+MODEL_NAME = "gemini-2.5-flash"
 # Initialize Embeddings globally
-embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004", google_api_key=api_key)
+embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001", google_api_key=api_key)
 
 # In-memory storage for simplicity (not suitable for production)
 # Session ID -> Text Content
@@ -71,7 +67,7 @@ async def upload_file(file: UploadFile = File(...), session_id: str = Form(None)
         
         # Create embeddings
         # Create embeddings (use global instance)
-        # embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004", google_api_key=api_key)
+        # embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001", google_api_key=api_key)
         
         # Check if session exists and append, or create new
         if session_id and session_id in session_store:
@@ -112,7 +108,7 @@ async def chat(request: ChatRequest):
     
     # Use the extracted service
     try:
-        answer = generate_answer(vector_store, user_message, model, history)
+        answer = generate_answer(vector_store, user_message, client, MODEL_NAME, history)
         
         # Update history
         history.append({'role': 'user', 'content': user_message})

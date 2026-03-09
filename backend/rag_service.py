@@ -1,8 +1,8 @@
 
 from langchain_community.vectorstores import FAISS
-from google.generativeai import GenerativeModel
+from google.genai import Client
 
-def generate_answer(vector_store: FAISS, query: str, model: GenerativeModel, history: list = []) -> str:
+def generate_answer(vector_store: FAISS, query: str, client: Client, model_name: str, history: list = []) -> str:
     """
     Retrieves relevant context from the vector store and generates an answer using the model.
     """
@@ -95,5 +95,5 @@ def generate_answer(vector_store: FAISS, query: str, model: GenerativeModel, his
         User Question: {query}
         """
     
-    response = model.generate_content(prompt)
+    response = client.models.generate_content(model=model_name, contents=prompt)
     return response.text

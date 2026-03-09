@@ -3,6 +3,50 @@ import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 import { FaPaperPlane, FaRobot, FaUser, FaPlus, FaSpinner } from 'react-icons/fa';
 
+// Typewriter component: reveals text word-by-word for a smooth typing feel
+const TypewriterText = ({ content, speed = 18, onComplete }) => {
+    const [displayed, setDisplayed] = useState('');
+    const idx = useRef(0);
+
+    useEffect(() => {
+        idx.current = 0;
+        setDisplayed('');
+        const timer = setInterval(() => {
+            idx.current++;
+            if (idx.current >= content.length) {
+                setDisplayed(content);
+                clearInterval(timer);
+                if (onComplete) onComplete();
+            } else {
+                setDisplayed(content.slice(0, idx.current));
+            }
+        }, speed);
+        return () => clearInterval(timer);
+    }, [content]);
+
+    return (
+        <ReactMarkdown
+            components={{
+                code: ({ node, inline, className, children, ...props }) => (
+                    <code className={className} style={{
+                        background: 'rgba(255,255,255,0.1)',
+                        padding: '0.2rem 0.4rem',
+                        borderRadius: '4px',
+                        fontSize: '0.85em'
+                    }} {...props}>
+                        {children}
+                    </code>
+                ),
+                p: ({ children }) => <p style={{ margin: '0 0 1rem 0' }}>{children}</p>,
+                ul: ({ children }) => <ul style={{ margin: '0 0 1rem 0', paddingLeft: '1.5rem' }}>{children}</ul>,
+                li: ({ children }) => <li style={{ marginBottom: '0.5rem' }}>{children}</li>
+            }}
+        >
+            {displayed}
+        </ReactMarkdown>
+    );
+};
+
 const ChatWindow = ({ sessionId, onUploadComplete }) => {
     const [messages, setMessages] = useState([
         { role: 'assistant', content: 'Hello! I\'m ready to help. Upload a PDF or ask me anything.' }
@@ -10,6 +54,7 @@ const ChatWindow = ({ sessionId, onUploadComplete }) => {
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
+    const [typingIdx, setTypingIdx] = useState(-1); // index of message currently being typed
     const [localSessionId] = useState(() => 'session_' + Math.random().toString(36).substr(2, 9));
     const activeSessionId = sessionId || localSessionId;
 
@@ -23,6 +68,14 @@ const ChatWindow = ({ sessionId, onUploadComplete }) => {
     useEffect(() => {
         scrollToBottom();
     }, [messages]);
+
+    // Keep scrolling during typewriter animation
+    useEffect(() => {
+        if (typingIdx >= 0) {
+            const interval = setInterval(scrollToBottom, 200);
+            return () => clearInterval(interval);
+        }
+    }, [typingIdx]);
 
     useEffect(() => {
         if (activeSessionId) {
@@ -46,7 +99,10 @@ const ChatWindow = ({ sessionId, onUploadComplete }) => {
             });
 
             const botMessage = { role: 'assistant', content: response.data.answer };
-            setMessages(prev => [...prev, botMessage]);
+            setMessages(prev => {
+                setTypingIdx(prev.length); // the new message index
+                return [...prev, botMessage];
+            });
         } catch (err) {
             console.error(err);
             const errorMessage = { role: 'assistant', content: 'Sorry, I encountered an error.' };
@@ -70,7 +126,10 @@ const ChatWindow = ({ sessionId, onUploadComplete }) => {
                 headers: { 'Content-Type': 'multipart/form-data' },
             });
             if (onUploadComplete) onUploadComplete(response.data);
-            setMessages(prev => [...prev, { role: 'assistant', content: `Successfully uploaded: **${file.name}**. I've indexed the content and am ready to answer your questions.` }]);
+            setMessages(prev => {
+                setTypingIdx(prev.length);
+                return [...prev, { role: 'assistant', content: `Successfully uploaded: **${file.name}**. I've indexed the content and am ready to answer your questions.` }];
+            });
         } catch (err) {
             console.error(err);
             setMessages(prev => [...prev, { role: 'assistant', content: 'Failed to upload file. Please try again.' }]);
@@ -166,25 +225,33 @@ const ChatWindow = ({ sessionId, onUploadComplete }) => {
                                 wordBreak: 'break-word',
                                 fontFamily: 'inherit'
                             }}>
-                                <ReactMarkdown
-                                    components={{
-                                        code: ({ node, inline, className, children, ...props }) => (
-                                            <code className={className} style={{
-                                                background: 'rgba(255,255,255,0.1)',
-                                                padding: '0.2rem 0.4rem',
-                                                borderRadius: '4px',
-                                                fontSize: '0.85em'
-                                            }} {...props}>
-                                                {children}
-                                            </code>
-                                        ),
-                                        p: ({ children }) => <p style={{ margin: '0 0 1rem 0' }}>{children}</p>,
-                                        ul: ({ children }) => <ul style={{ margin: '0 0 1rem 0', paddingLeft: '1.5rem' }}>{children}</ul>,
-                                        li: ({ children }) => <li style={{ marginBottom: '0.5rem' }}>{children}</li>
-                                    }}
-                                >
-                                    {msg.content}
-                                </ReactMarkdown>
+                                {msg.role === 'assistant' && idx === typingIdx ? (
+                                    <TypewriterText
+                                        content={msg.content}
+                                        speed={18}
+                                        onComplete={() => setTypingIdx(-1)}
+                                    />
+                                ) : (
+                                    <ReactMarkdown
+                                        components={{
+                                            code: ({ node, inline, className, children, ...props }) => (
+                                                <code className={className} style={{
+                                                    background: 'rgba(255,255,255,0.1)',
+                                                    padding: '0.2rem 0.4rem',
+                                                    borderRadius: '4px',
+                                                    fontSize: '0.85em'
+                                                }} {...props}>
+                                                    {children}
+                                                </code>
+                                            ),
+                                            p: ({ children }) => <p style={{ margin: '0 0 1rem 0' }}>{children}</p>,
+                                            ul: ({ children }) => <ul style={{ margin: '0 0 1rem 0', paddingLeft: '1.5rem' }}>{children}</ul>,
+                                            li: ({ children }) => <li style={{ marginBottom: '0.5rem' }}>{children}</li>
+                                        }}
+                                    >
+                                        {msg.content}
+                                    </ReactMarkdown>
+                                )}
                             </div>
                         </div>
                     </div>
