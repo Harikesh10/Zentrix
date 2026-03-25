@@ -54,7 +54,7 @@ const Navbar = () => {
                 <div className="hidden md:flex items-center gap-4">
                     <Link to="/chat" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">AI Bot</Link>
                     <Link to="/dashboard" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Dashboard</Link>
-                    <Link to="/login" className="text-sm font-medium text-white hover:text-blue-400 transition-colors">Login</Link>
+                    <Link to="/signin" className="text-sm font-medium text-white hover:text-blue-400 transition-colors">Login</Link>
                     <Link to="/chat" className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2 px-5 rounded-full transition-all shadow-lg shadow-blue-500/20 hover:scale-105">
                         Get Started
                     </Link>
@@ -81,7 +81,7 @@ const Navbar = () => {
                     <div className="h-px bg-white/10 my-2"></div>
                     <Link to="/chat" className="text-sm font-medium text-slate-300">AI Bot</Link>
                     <Link to="/dashboard" className="text-sm font-medium text-slate-300">Dashboard</Link>
-                    <Link to="/login" className="text-sm font-medium text-white">Login</Link>
+                    <Link to="/signin" className="text-sm font-medium text-white">Login</Link>
                 </div>
             )}
         </nav>

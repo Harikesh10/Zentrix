@@ -3,7 +3,8 @@ import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-route
 import LandingPage from './pages/LandingPage';
 import ChatPage from './pages/ChatPage';
 import DashboardPage from './pages/DashboardPage';
-import LoginPage from './pages/LoginPage';
+import SignInPage from './pages/SignInPage';
+import SignUpPage from './pages/SignUpPage';
 
 // ScrollToTop component to ensure new pages start at the top
 const ScrollToTop = () => {
@@ -22,7 +23,8 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signin" element={<SignInPage />} />
+        <Route path="/signup" element={<SignUpPage />} />
       </Routes>
     </Router>
   );
