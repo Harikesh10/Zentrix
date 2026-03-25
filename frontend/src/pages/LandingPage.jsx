@@ -227,7 +227,10 @@ const LandingPage = () => {
             <footer className="py-6 px-6 border-t border-white/5 bg-[#020617] text-xs">
                 <div className="max-w-7xl mx-auto grid md:grid-cols-4 gap-6 mb-6">
                     <div className="col-span-1 md:col-span-1">
-                        <h3 className="text-lg font-bold mb-2">Zentrix<span className="text-blue-500">AI</span></h3>
+                        <div className="flex items-center gap-2 mb-2">
+                            <img src="/z.png" alt="Zentrix logo" className="h-7 w-7 rounded-md object-cover" />
+                            <h3 className="text-lg font-bold">Zentrix<span className="text-blue-500">AI</span></h3>
+                        </div>
                         <p className="text-slate-500 leading-relaxed">The ultimate AI study companion for students.</p>
                     </div>
                     <div>
