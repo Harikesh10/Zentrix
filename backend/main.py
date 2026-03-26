@@ -43,6 +43,7 @@ session_store = {}
 class ChatRequest(BaseModel):
     session_id: str
     message: str
+    history: list = []  # Added to rebuild context from DB if necessary
 
 @app.get("/")
 def read_root():
@@ -65,10 +66,6 @@ async def upload_file(file: UploadFile = File(...), session_id: str = Form(None)
         )
         chunks = text_splitter.split_text(text)
         
-        # Create embeddings
-        # Create embeddings (use global instance)
-        # embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001", google_api_key=api_key)
-        
         # Check if session exists and append, or create new
         if session_id and session_id in session_store:
             session_data = session_store[session_id]
@@ -80,7 +77,8 @@ async def upload_file(file: UploadFile = File(...), session_id: str = Form(None)
         else:
             vector_store = FAISS.from_texts(chunks, embedding=embeddings)
             import uuid
-            session_id = str(uuid.uuid4())
+            if not session_id:
+                session_id = str(uuid.uuid4())
             session_store[session_id] = {
                 'vector_store': vector_store,
                 'history': []
@@ -99,14 +97,18 @@ async def chat(request: ChatRequest):
     if session_id not in session_store:
         session_store[session_id] = {
             'vector_store': None,
-            'history': []
+            'history': request.history or []
         }
     
     session_data = session_store[session_id]
     vector_store = session_data['vector_store']
+    
+    # Update local history if it's empty but frontend provided one
+    if not session_data['history'] and request.history:
+        session_data['history'] = request.history
+
     history = session_data['history']
     
-    # Use the extracted service
     try:
         answer = generate_answer(vector_store, user_message, client, MODEL_NAME, history)
         
@@ -118,7 +120,6 @@ async def chat(request: ChatRequest):
     except Exception as e:
         import traceback
         traceback.print_exc()
-        # Check for specific Google API errors if possible
         if "400" in str(e):
              raise HTTPException(status_code=400, detail=f"API Error: {str(e)}. Check your API key or quota.")
         raise HTTPException(status_code=500, detail=f"Internal Error: {str(e)}")
@@ -129,7 +130,6 @@ async def get_stats(session_id: str):
         return {"question_count": 0}
     
     history = session_store[session_id]['history']
-    # Count messages where role is 'user'
     question_count = sum(1 for msg in history if msg['role'] == 'user')
     return {"question_count": question_count}
 

@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
 import { FaPaperPlane, FaRobot, FaUser, FaPlus, FaSpinner } from 'react-icons/fa';
+import { db } from '../firebase';
+import { doc, getDoc, collection, addDoc, serverTimestamp, updateDoc, arrayUnion } from 'firebase/firestore';
 
 // Typewriter component: reveals text word-by-word for a smooth typing feel
 const TypewriterText = ({ content, speed = 18, onComplete }) => {
@@ -47,16 +49,13 @@ const TypewriterText = ({ content, speed = 18, onComplete }) => {
     );
 };
 
-const ChatWindow = ({ sessionId, onUploadComplete }) => {
-    const [messages, setMessages] = useState([
-        { role: 'assistant', content: 'Hello! I\'m ready to help. Upload a PDF or ask me anything.' }
-    ]);
+const ChatWindow = ({ user, sessionId, onSessionChange, onUploadComplete }) => {
+    const defaultMessages = [{ role: 'assistant', content: 'Hello! I\'m ready to help. Upload a PDF or ask me anything.' }];
+    const [messages, setMessages] = useState(defaultMessages);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
-    const [typingIdx, setTypingIdx] = useState(-1); // index of message currently being typed
-    const [localSessionId] = useState(() => 'session_' + Math.random().toString(36).substr(2, 9));
-    const activeSessionId = sessionId || localSessionId;
+    const [typingIdx, setTypingIdx] = useState(-1);
 
     const messagesEndRef = useRef(null);
     const fileInputRef = useRef(null);
@@ -69,7 +68,6 @@ const ChatWindow = ({ sessionId, onUploadComplete }) => {
         scrollToBottom();
     }, [messages]);
 
-    // Keep scrolling during typewriter animation
     useEffect(() => {
         if (typingIdx >= 0) {
             const interval = setInterval(scrollToBottom, 200);
@@ -78,35 +76,104 @@ const ChatWindow = ({ sessionId, onUploadComplete }) => {
     }, [typingIdx]);
 
     useEffect(() => {
-        if (activeSessionId) {
-            localStorage.setItem('last_session_id', activeSessionId);
+        if (!sessionId) {
+            setMessages(defaultMessages);
+            return;
         }
-    }, [activeSessionId]);
+
+        const fetchChat = async () => {
+            const docRef = doc(db, 'chats', sessionId);
+            // using getDoc rather than onSnapshot for individual chats to prevent optimistic UI collisions
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                if (data.messages && data.messages.length > 0) {
+                    setMessages(data.messages);
+                } else {
+                    setMessages(defaultMessages);
+                }
+            } else {
+                setMessages(defaultMessages);
+            }
+        };
+        fetchChat();
+    }, [sessionId]);
+
+    const createChatSession = async (initialMessages, title) => {
+        if (!user) {
+            console.error("User not logged in");
+            return null;
+        }
+        const newChat = {
+            userId: user.uid,
+            title: title || 'New Chat',
+            messages: initialMessages,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        };
+        const docRef = await addDoc(collection(db, 'chats'), newChat);
+        if (onSessionChange) onSessionChange(docRef.id);
+        return docRef.id;
+    };
 
     const handleSend = async (e) => {
         e.preventDefault();
         if (!input.trim() || isLoading) return;
 
         const userMessage = { role: 'user', content: input };
-        setMessages(prev => [...prev, userMessage]);
+        let currentSessionId = sessionId;
+        
+        let newMessages = [];
+        if (!currentSessionId) {
+             newMessages = [defaultMessages[0], userMessage];
+             setMessages(newMessages); 
+             currentSessionId = await createChatSession(newMessages, input.slice(0, 30));
+        } else {
+             newMessages = [...messages, userMessage];
+             setMessages(newMessages); 
+             
+             // Update title if it's the second message in the array after default message
+             const shouldUpdateTitle = messages.length <= 2;
+             const updateData = {
+                 messages: newMessages,
+                 updatedAt: serverTimestamp()
+             };
+             if (shouldUpdateTitle) {
+                 updateData.title = input.slice(0, 30);
+             }
+             
+             const chatRef = doc(db, 'chats', currentSessionId);
+             await updateDoc(chatRef, updateData);
+        }
+
         setInput('');
         setIsLoading(true);
 
         try {
             const response = await axios.post('http://localhost:8000/chat', {
-                session_id: activeSessionId,
-                message: userMessage.content
+                session_id: currentSessionId,
+                message: userMessage.content,
+                history: messages
             });
 
             const botMessage = { role: 'assistant', content: response.data.answer };
-            setMessages(prev => {
-                setTypingIdx(prev.length); // the new message index
-                return [...prev, botMessage];
-            });
+            setTypingIdx(newMessages.length);
+            
+            const updatedMessages = [...newMessages, botMessage];
+            setMessages(updatedMessages); 
+            
+            if (currentSessionId) {
+                const chatRef = doc(db, 'chats', currentSessionId);
+                await updateDoc(chatRef, {
+                    messages: updatedMessages,
+                    updatedAt: serverTimestamp()
+                });
+            }
         } catch (err) {
             console.error(err);
             const errorMessage = { role: 'assistant', content: 'Sorry, I encountered an error.' };
-            setMessages(prev => [...prev, errorMessage]);
+            const updatedMessages = [...newMessages, errorMessage];
+            setMessages(updatedMessages);
         } finally {
             setIsLoading(false);
         }
@@ -117,22 +184,45 @@ const ChatWindow = ({ sessionId, onUploadComplete }) => {
         if (!file) return;
 
         setIsUploading(true);
+        let currentSessionId = sessionId;
+        
+        const botMessage = { role: 'assistant', content: `Successfully uploaded: **${file.name}**. I've indexed the content and am ready to answer your questions.` };
+        
+        if (!currentSessionId) {
+            const initialMessages = [defaultMessages[0], botMessage];
+            currentSessionId = await createChatSession(initialMessages, `PDF: ${file.name}`);
+            setMessages(initialMessages);
+        } else {
+            const chatRef = doc(db, 'chats', currentSessionId);
+            await updateDoc(chatRef, {
+                messages: arrayUnion(botMessage),
+                updatedAt: serverTimestamp()
+            });
+            setMessages(prev => [...prev, botMessage]); 
+        }
+        
         const formData = new FormData();
         formData.append('file', file);
-        if (activeSessionId) formData.append('session_id', activeSessionId);
+        if (currentSessionId) formData.append('session_id', currentSessionId);
 
         try {
             const response = await axios.post('http://localhost:8000/upload', formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
             });
             if (onUploadComplete) onUploadComplete(response.data);
-            setMessages(prev => {
-                setTypingIdx(prev.length);
-                return [...prev, { role: 'assistant', content: `Successfully uploaded: **${file.name}**. I've indexed the content and am ready to answer your questions.` }];
-            });
+            
         } catch (err) {
             console.error(err);
-            setMessages(prev => [...prev, { role: 'assistant', content: 'Failed to upload file. Please try again.' }]);
+            const errorMsg = { role: 'assistant', content: 'Failed to upload file. Please try again.' };
+            if (currentSessionId) {
+                 await updateDoc(doc(db, 'chats', currentSessionId), {
+                      messages: arrayUnion(errorMsg),
+                      updatedAt: serverTimestamp()
+                 });
+                 setMessages(prev => [...prev, errorMsg]);
+            } else {
+                 setMessages(prev => [...prev, errorMsg]);
+            }
         } finally {
             setIsUploading(false);
             if (fileInputRef.current) fileInputRef.current.value = '';
@@ -160,7 +250,7 @@ const ChatWindow = ({ sessionId, onUploadComplete }) => {
                 <div style={{ width: '100%', maxWidth: '900px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }}></div>
-                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.5px' }}>ZENTRIX ONLINE</span>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.5px' }}>ZENTRIX ONLINE</span>
                     </div>
                 </div>
             </div>
@@ -208,7 +298,7 @@ const ChatWindow = ({ sessionId, onUploadComplete }) => {
                                     flexShrink: 0,
                                     marginTop: '4px'
                                 }}>
-                                    <FaRobot size={16} color="var(--text-secondary)" />
+                                    <FaRobot size={16} color="rgba(255,255,255,0.5)" />
                                 </div>
                             )}
 
@@ -218,7 +308,7 @@ const ChatWindow = ({ sessionId, onUploadComplete }) => {
                                 borderRadius: msg.role === 'user' ? '18px' : '0',
                                 background: msg.role === 'user' ? 'rgba(30, 41, 59, 1)' : 'transparent',
                                 border: 'none',
-                                color: 'var(--text-primary)',
+                                color: 'white',
                                 fontSize: '1rem',
                                 lineHeight: '1.6',
                                 maxWidth: '100%',
@@ -276,18 +366,18 @@ const ChatWindow = ({ sessionId, onUploadComplete }) => {
                             justifyContent: 'center',
                             flexShrink: 0
                         }}>
-                            <FaRobot size={16} color="var(--text-secondary)" />
+                            <FaRobot size={16} color="rgba(255,255,255,0.5)" />
                         </div>
                         <div style={{ display: 'flex', gap: '4px', marginTop: '12px' }}>
-                            <div className="typing-dot" style={{ background: 'var(--accent-color)' }}></div>
-                            <div className="typing-dot" style={{ background: 'var(--accent-color)' }}></div>
-                            <div className="typing-dot" style={{ background: 'var(--accent-color)' }}></div>
+                            <div className="typing-dot" style={{ background: '#3b82f6' }}></div>
+                            <div className="typing-dot" style={{ background: '#3b82f6' }}></div>
+                            <div className="typing-dot" style={{ background: '#3b82f6' }}></div>
                         </div>
                     </div>
                 )}
 
                 {isUploading && (
-                    <div style={{ alignSelf: 'center', display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(59, 130, 246, 0.1)', padding: '0.5rem 1rem', borderRadius: '20px', fontSize: '0.8rem', color: 'var(--accent-color)', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                    <div style={{ alignSelf: 'center', display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(59, 130, 246, 0.1)', padding: '0.5rem 1rem', borderRadius: '20px', fontSize: '0.8rem', color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
                         <FaSpinner className="spinner" style={{ animation: 'spin 1s linear infinite' }} />
                         <span>Indexing document...</span>
                     </div>
@@ -310,7 +400,7 @@ const ChatWindow = ({ sessionId, onUploadComplete }) => {
                         background: 'rgba(30, 41, 59, 0.5)',
                         padding: '0.75rem 1rem',
                         borderRadius: '20px',
-                        border: '1px solid var(--glass-border)',
+                        border: '1px solid rgba(255,255,255,0.1)',
                         boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
                         transition: 'all 0.2s'
                     }}
@@ -319,7 +409,7 @@ const ChatWindow = ({ sessionId, onUploadComplete }) => {
                             e.currentTarget.style.background = 'rgba(30, 41, 59, 0.8)';
                         }}
                         onBlur={(e) => {
-                            e.currentTarget.style.borderColor = 'var(--glass-border)';
+                            e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
                             e.currentTarget.style.background = 'rgba(30, 41, 59, 0.5)';
                         }}
                     >
@@ -342,7 +432,7 @@ const ChatWindow = ({ sessionId, onUploadComplete }) => {
                                 borderRadius: '50%',
                                 border: 'none',
                                 background: 'rgba(255,255,255,0.05)',
-                                color: 'var(--text-secondary)',
+                                color: 'rgba(255,255,255,0.5)',
                                 cursor: 'pointer',
                                 display: 'flex',
                                 alignItems: 'center',
@@ -350,7 +440,7 @@ const ChatWindow = ({ sessionId, onUploadComplete }) => {
                                 transition: 'all 0.2s'
                             }}
                             onMouseOver={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = 'white'; }}
-                            onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                            onMouseOut={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = 'rgba(255,255,255,0.5)'; }}
                         >
                             <FaPlus size={16} />
                         </button>
@@ -375,7 +465,7 @@ const ChatWindow = ({ sessionId, onUploadComplete }) => {
                             type="submit"
                             disabled={isLoading || !input.trim()}
                             style={{
-                                background: input.trim() ? 'var(--accent-color)' : 'rgba(255,255,255,0.05)',
+                                background: input.trim() ? '#3b82f6' : 'rgba(255,255,255,0.05)',
                                 color: input.trim() ? 'white' : 'rgba(255,255,255,0.2)',
                                 border: 'none',
                                 borderRadius: '50%',
@@ -399,7 +489,7 @@ const ChatWindow = ({ sessionId, onUploadComplete }) => {
                 .typing-dot {
                     width: 6px;
                     height: 6px;
-                    background: var(--text-secondary);
+                    background: rgba(255,255,255,0.5);
                     border-radius: 50%;
                     animation: typing 1.4s infinite ease-in-out;
                 }

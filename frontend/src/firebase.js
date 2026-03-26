@@ -1,16 +1,17 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
 // TODO: Replace with your Firebase project configuration
 // You can get this by creating a project at console.firebase.google.com
 const firebaseConfig = {
-    apiKey: "AIzaSyCGqCtqVks4KQ4JRrcuED2OhknqDQfYYeY",
-    authDomain: "the-real-z.firebaseapp.com",
-    projectId: "the-real-z",
-    storageBucket: "the-real-z.firebasestorage.app",
-    messagingSenderId: "853453550261",
-    appId: "1:853453550261:web:31807b9e3dec20e93f44fc",
-    measurementId: "G-ERBJ63EKHQ"
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase
@@ -20,4 +21,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 
-export { auth, googleProvider, signInWithPopup };
+// Initialize Cloud Firestore and get a reference to the service
+const db = getFirestore(app);
+
+export { auth, googleProvider, signInWithPopup, db };
