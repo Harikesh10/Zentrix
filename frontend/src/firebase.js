@@ -4,7 +4,7 @@ import { getAuth, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 // TODO: Replace with your Firebase project configuration
 // You can get this by creating a project at console.firebase.google.com
 const firebaseConfig = {
-    apiKey: "AIzaSyCGqCtqVks4KQ4JRrcuED2OhknqDQfYYeY",
+    apiKey: "",
     authDomain: "the-real-z.firebaseapp.com",
     projectId: "the-real-z",
     storageBucket: "the-real-z.firebasestorage.app",
