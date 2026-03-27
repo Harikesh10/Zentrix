@@ -2,19 +2,25 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Flame, Bot, Plus, MessageSquare, Layers, Code, Database } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { auth, db } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 
 const DashboardPage = () => {
     const navigate = useNavigate();
+    const location = useLocation();
+    const searchParams = new URLSearchParams(location.search);
+    const isDemoMode = searchParams.get('demo') === 'true';
+
     const [user, setUser] = useState(null);
+    const activeUser = isDemoMode ? null : user;
     // basic stat states
     const [streak, setStreak] = useState(0);
     const [lastLoginTime, setLastLoginTime] = useState(null);
     const [questionsLearned, setQuestionsLearned] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
+    const [authLoaded, setAuthLoaded] = useState(false);
     
     // calendar and graph state
     const [activeDates, setActiveDates] = useState([]);
@@ -25,13 +31,12 @@ const DashboardPage = () => {
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, u => {
             setUser(u);
+            setAuthLoaded(true);
         });
         return () => unsubscribe();
     }, []);
 
     useEffect(() => {
-        if (!user) return;
-        
         const fetchDashboardData = async () => {
             const now = new Date();
             const todayStr = now.toLocaleDateString();
@@ -46,8 +51,31 @@ const DashboardPage = () => {
             setCalendarBlanks(blanks);
             setCalendarDays(monthDays);
             
+            // Default flat graph data for guests / before load
+            const initialGraphData = [];
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date(now);
+                d.setDate(d.getDate() - i);
+                const dateStr = d.toLocaleDateString();
+                const dayLabel = d.toLocaleDateString('en-US', { weekday: 'short' });
+                initialGraphData.push({
+                    dateKey: dateStr,
+                    day: dayLabel,
+                    questions: 0
+                });
+            }
+
+            if (!activeUser) {
+                setStreak(0);
+                setActiveDates([]);
+                setGraphData(initialGraphData);
+                setQuestionsLearned(0);
+                setIsLoading(false);
+                return;
+            }
+            
             // 2. Fetch User Stats (Streak)
-            const userRef = doc(db, 'users', user.uid);
+            const userRef = doc(db, 'users', activeUser.uid);
             const userSnap = await getDoc(userRef);
             
             let currentStreak = 1;
@@ -104,7 +132,7 @@ const DashboardPage = () => {
             }
             
             // 4. Fetch Chat Questions Logic 
-            const q = query(collection(db, 'chats'), where('userId', '==', user.uid));
+            const q = query(collection(db, 'chats'), where('userId', '==', activeUser.uid));
             const chatSnaps = await getDocs(q);
             
             const localGraphHistory = {}; 
@@ -129,25 +157,25 @@ const DashboardPage = () => {
             }
             setQuestionsLearned(totalQs);
             
-            // Build Graph Data for exactly last 7 days
-            const initialGraphData = [];
+            // Build Final Graph Data for logged-in user
+            const finalGraphData = [];
             for (let i = 6; i >= 0; i--) {
                 const d = new Date(now);
                 d.setDate(d.getDate() - i);
                 const dateStr = d.toLocaleDateString();
                 const dayLabel = d.toLocaleDateString('en-US', { weekday: 'short' });
-                initialGraphData.push({
+                finalGraphData.push({
                     dateKey: dateStr,
                     day: dayLabel,
                     questions: localGraphHistory[dateStr] || 0
                 });
             }
-            setGraphData(initialGraphData);
+            setGraphData(finalGraphData);
             setIsLoading(false);
         };
         
         fetchDashboardData();
-    }, [user]);
+    }, [activeUser]);
 
     // Custom Tooltip for Recharts
     const CustomTooltip = ({ active, payload, label }) => {
@@ -188,7 +216,7 @@ const DashboardPage = () => {
                 </div>
                 <div className="flex items-center gap-4">
                     <button 
-                        onClick={() => navigate('/chat')} 
+                        onClick={() => navigate(isDemoMode ? '/chat?demo=true' : '/chat')} 
                         className="flex items-center gap-2 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white px-5 py-2 rounded-xl transition-all font-medium border border-blue-500/30 hover:border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.15)] hover:shadow-[0_0_20px_rgba(59,130,246,0.4)]"
                     >
                         <Bot size={18} />
@@ -199,6 +227,25 @@ const DashboardPage = () => {
 
             <main className="flex-1 overflow-y-auto p-4 md:p-8">
                 <div className="max-w-7xl mx-auto space-y-12">
+                    
+                    {!activeUser && authLoaded && (
+                        <div className="bg-orange-500/10 border border-orange-500/30 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg">
+                            <div className="flex flex-col">
+                                <span className="text-orange-400 font-semibold text-lg">{isDemoMode ? "Welcome to Demo Dashboard" : "Guest Mode"}</span>
+                                <span className="text-slate-400 text-sm">{isDemoMode ? "You are interacting with a temporary sandbox dashboard that will not affect your logged-in account data." : "Dashboard values are default and activity is not recorded. Login to use the dashboard fully."}</span>
+                            </div>
+                            <button onClick={() => isDemoMode ? navigate('/') : navigate('/signin')} className="shrink-0 bg-orange-500/20 hover:bg-orange-500 text-orange-400 hover:text-white border border-orange-500/50 px-6 py-2 rounded-xl font-medium transition-all">
+                                {isDemoMode ? "Exit Demo" : "Log In Now"}
+                            </button>
+                        </div>
+                    )}
+
+                    {activeUser && (
+                        <div>
+                            <h2 className="text-3xl font-extrabold text-white tracking-tight">Welcome back, {activeUser.displayName || activeUser.email?.split('@')[0]}!</h2>
+                            <p className="text-slate-400 mt-2">Here is your personal learning progress dashboard.</p>
+                        </div>
+                    )}
                     
                     {/* Section 1: Top Container - Streak Graph & Calendar */}
                     <section>

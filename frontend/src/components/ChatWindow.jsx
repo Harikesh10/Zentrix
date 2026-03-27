@@ -124,7 +124,7 @@ const ChatWindow = ({ user, sessionId, onSessionChange, onUploadComplete }) => {
         let currentSessionId = sessionId;
         
         let newMessages = [];
-        if (!currentSessionId) {
+        if (!currentSessionId && user) {
              newMessages = [defaultMessages[0], userMessage];
              setMessages(newMessages); 
              currentSessionId = await createChatSession(newMessages, input.slice(0, 30));
@@ -132,18 +132,20 @@ const ChatWindow = ({ user, sessionId, onSessionChange, onUploadComplete }) => {
              newMessages = [...messages, userMessage];
              setMessages(newMessages); 
              
-             // Update title if it's the second message in the array after default message
-             const shouldUpdateTitle = messages.length <= 2;
-             const updateData = {
-                 messages: newMessages,
-                 updatedAt: serverTimestamp()
-             };
-             if (shouldUpdateTitle) {
-                 updateData.title = input.slice(0, 30);
+             if (currentSessionId) {
+                 // Update title if it's the second message in the array after default message
+                 const shouldUpdateTitle = messages.length <= 2;
+                 const updateData = {
+                     messages: newMessages,
+                     updatedAt: serverTimestamp()
+                 };
+                 if (shouldUpdateTitle) {
+                     updateData.title = input.slice(0, 30);
+                 }
+                 
+                 const chatRef = doc(db, 'chats', currentSessionId);
+                 await updateDoc(chatRef, updateData);
              }
-             
-             const chatRef = doc(db, 'chats', currentSessionId);
-             await updateDoc(chatRef, updateData);
         }
 
         setInput('');
@@ -188,16 +190,18 @@ const ChatWindow = ({ user, sessionId, onSessionChange, onUploadComplete }) => {
         
         const botMessage = { role: 'assistant', content: `Successfully uploaded: **${file.name}**. I've indexed the content and am ready to answer your questions.` };
         
-        if (!currentSessionId) {
+        if (!currentSessionId && user) {
             const initialMessages = [defaultMessages[0], botMessage];
             currentSessionId = await createChatSession(initialMessages, `PDF: ${file.name}`);
             setMessages(initialMessages);
         } else {
-            const chatRef = doc(db, 'chats', currentSessionId);
-            await updateDoc(chatRef, {
-                messages: arrayUnion(botMessage),
-                updatedAt: serverTimestamp()
-            });
+            if (currentSessionId) {
+                const chatRef = doc(db, 'chats', currentSessionId);
+                await updateDoc(chatRef, {
+                    messages: arrayUnion(botMessage),
+                    updatedAt: serverTimestamp()
+                });
+            }
             setMessages(prev => [...prev, botMessage]); 
         }
         

@@ -1,12 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, LogOut } from 'lucide-react';
+import { auth } from '../firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 
 const Navbar = () => {
     const [isScrolled, setIsScrolled] = useState(false);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const navigate = useNavigate();
     const location = useLocation();
+    const [user, setUser] = useState(null);
+
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, u => {
+            setUser(u);
+        });
+        return () => unsubscribe();
+    }, []);
 
     useEffect(() => {
         const handleScroll = () => setIsScrolled(window.scrollY > 20);
@@ -54,10 +64,31 @@ const Navbar = () => {
                 <div className="hidden md:flex items-center gap-4">
                     <Link to="/chat" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">AI Bot</Link>
                     <Link to="/dashboard" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Dashboard</Link>
-                    <Link to="/signin" className="text-sm font-medium text-white hover:text-blue-400 transition-colors">Login</Link>
-                    <Link to="/chat" className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2 px-5 rounded-full transition-all shadow-lg shadow-blue-500/20 hover:scale-105">
-                        Get Started
-                    </Link>
+                    
+                    {!user ? (
+                        <Link to="/signin" className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2 px-6 rounded-full transition-all shadow-lg hover:scale-105 ml-4">
+                            Login
+                        </Link>
+                    ) : (
+                        <div className="flex items-center gap-4 ml-4 pl-4 border-l border-white/10">
+                            <div className="flex items-center gap-2">
+                                <div className="w-9 h-9 rounded-full overflow-hidden bg-slate-800 border-2 border-slate-700/50 flex items-center justify-center shrink-0">
+                                    {user.photoURL ? (
+                                        <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" />
+                                    ) : (
+                                        <span className="text-white text-xs font-bold">{((user.displayName || user.email) || 'U').charAt(0).toUpperCase()}</span>
+                                    )}
+                                </div>
+                                <span className="text-sm font-semibold text-white tracking-wide">{user.displayName || user.email?.split('@')[0]}</span>
+                            </div>
+                            <button onClick={() => {
+                                localStorage.removeItem('currentChatId');
+                                signOut(auth);
+                            }} className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 hover:text-red-300 text-xs font-semibold py-1.5 px-4 rounded-full transition-all">
+                                Logout
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 {/* Mobile menu toggle */}
@@ -81,7 +112,14 @@ const Navbar = () => {
                     <div className="h-px bg-white/10 my-2"></div>
                     <Link to="/chat" className="text-sm font-medium text-slate-300">AI Bot</Link>
                     <Link to="/dashboard" className="text-sm font-medium text-slate-300">Dashboard</Link>
-                    <Link to="/signin" className="text-sm font-medium text-white">Login</Link>
+                    {!user ? (
+                        <Link to="/signin" className="text-sm font-medium text-white">Login</Link>
+                    ) : (
+                        <button onClick={() => {
+                            localStorage.removeItem('currentChatId');
+                            signOut(auth);
+                        }} className="text-left text-sm font-medium text-red-400">Logout</button>
+                    )}
                 </div>
             )}
         </nav>

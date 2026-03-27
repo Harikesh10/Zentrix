@@ -4,25 +4,43 @@ import { db, auth } from '../firebase';
 import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { Plus, MessageSquare, Menu, X } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 
 const ChatPage = () => {
+    const location = useLocation();
+    const searchParams = new URLSearchParams(location.search);
+    const isDemoMode = searchParams.get('demo') === 'true';
+
     const [user, setUser] = useState(null);
+    const activeUser = isDemoMode ? null : user;
     const [chats, setChats] = useState([]);
-    const [currentChatId, setCurrentChatId] = useState(() => localStorage.getItem('currentChatId') || null);
+    const [currentChatId, setCurrentChatId] = useState(() => isDemoMode ? null : (localStorage.getItem('currentChatId') || null));
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [authLoaded, setAuthLoaded] = useState(false);
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
+            setAuthLoaded(true);
+            if (!currentUser && !isDemoMode) {
+                // If not logged in, reset any stored chat to prevent persistence
+                setCurrentChatId(null);
+                localStorage.removeItem('currentChatId');
+            }
         });
         return () => unsubscribe();
-    }, []);
+    }, [isDemoMode]);
+
+    const [chatsLoaded, setChatsLoaded] = useState(false);
 
     useEffect(() => {
-        if (!user) return;
+        if (!activeUser) {
+            setChatsLoaded(false);
+            return;
+        }
         const q = query(
             collection(db, "chats"),
-            where("userId", "==", user.uid)
+            where("userId", "==", activeUser.uid)
         );
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const chatsData = [];
@@ -36,20 +54,38 @@ const ChatPage = () => {
                 return timeB - timeA;
             });
             setChats(chatsData);
+            setChatsLoaded(true);
         }, (error) => {
             console.error("Error fetching chats:", error);
+            setChatsLoaded(true);
         });
         return () => unsubscribe();
-    }, [user]);
+    }, [activeUser]);
 
-    // Persist active chat on refresh
     useEffect(() => {
-        if (currentChatId) {
-            localStorage.setItem('currentChatId', currentChatId);
-        } else {
-            localStorage.removeItem('currentChatId');
+        // Run validation ONCE when chats initially load for the user
+        // We omit 'chats' and 'currentChatId' from dependencies so it only triggers upon initial snapshot
+        if (activeUser && chatsLoaded && currentChatId) {
+            const belongsToUser = chats.some(chat => chat.id === currentChatId);
+            // If the chat doesn't belong to them (e.g. leftover from another session)
+            if (!belongsToUser) {
+                setCurrentChatId(null);
+                localStorage.removeItem('currentChatId');
+            }
         }
-    }, [currentChatId]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeUser, chatsLoaded]);
+
+    // Persist active chat on refresh only if logged in
+    useEffect(() => {
+        if (authLoaded && !isDemoMode) {
+            if (activeUser && currentChatId) {
+                localStorage.setItem('currentChatId', currentChatId);
+            } else if (!activeUser) {
+                localStorage.removeItem('currentChatId');
+            }
+        }
+    }, [currentChatId, activeUser, authLoaded, isDemoMode]);
 
     const handleNewChat = () => {
         setCurrentChatId(null);
@@ -94,9 +130,19 @@ const ChatPage = () => {
                                     <span className="text-sm truncate font-medium">{chat.title || 'New Chat'}</span>
                                 </button>
                             ))}
-                            {chats.length === 0 && (
+                            {chats.length === 0 && activeUser && (
                                 <div className="text-slate-500 text-sm text-center italic mt-4 px-2">
                                     No past chats yet. Start a new one!
+                                </div>
+                            )}
+                            {!activeUser && authLoaded && (
+                                <div className="bg-orange-500/10 border border-orange-500/20 flex flex-col items-center text-orange-400 text-xs text-center p-3 rounded-lg mt-4 shadow-lg">
+                                    <span>{isDemoMode ? "History is isolated in Demo Mode." : "History is disabled in guest mode. Login to save your chats."}</span>
+                                    {isDemoMode && (
+                                        <button onClick={() => window.location.href = '/'} className="mt-2 w-full bg-orange-500/20 hover:bg-orange-500 text-orange-400 hover:text-white border border-orange-500/50 p-1.5 rounded-md font-semibold transition-all">
+                                            Return Home
+                                        </button>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -121,7 +167,7 @@ const ChatPage = () => {
 
                 <div className="flex-1 flex flex-col w-full h-full relative overflow-hidden">
                     <ChatWindow
-                        user={user}
+                        user={activeUser}
                         sessionId={currentChatId}
                         onSessionChange={setCurrentChatId}
                     />

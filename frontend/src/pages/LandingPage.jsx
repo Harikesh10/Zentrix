@@ -41,10 +41,10 @@ const LandingPage = () => {
                             An AI-powered platform that helps students learn smarter, revise faster, and track progress with personalized chat assistance.
                         </motion.p>
                         <motion.div variants={fadeInUp} className="flex flex-wrap gap-4">
-                            <Link to="/chat" className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-full transition-all hover:scale-105 shadow-[0_0_20px_rgba(37,99,235,0.3)] flex items-center gap-2">
+                            <Link to="/chat?demo=true" className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-full transition-all hover:scale-105 shadow-[0_0_20px_rgba(37,99,235,0.3)] flex items-center gap-2">
                                 Start Studying <ArrowRight size={18} />
                             </Link>
-                            <Link to="/dashboard" className="bg-white/5 hover:bg-white/10 text-white border border-white/10 font-semibold py-3 px-8 rounded-full transition-all hover:border-white/20">
+                            <Link to="/dashboard?demo=true" className="bg-white/5 hover:bg-white/10 text-white border border-white/10 font-semibold py-3 px-8 rounded-full transition-all hover:border-white/20">
                                 View Dashboard
                             </Link>
                         </motion.div>
