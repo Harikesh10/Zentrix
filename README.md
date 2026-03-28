@@ -10,26 +10,21 @@ Zentrix is a sophisticated, AI-driven learning platform designed to turn your do
 - **📊 Dynamic Dashboard**: Visualize your learning journey with streak trackers, activity heatmaps, and progress charts.
 - **🃏 Smart Flashcards**: Organize and review core concepts with an elegant, interactive flashcard system.
 - **🔥 Persistence & Synced History**: Your chat history and learning progress are securely stored and synced across sessions thanks to Firebase integration.
-- **🎨 Premium UI/UX**: A state-of-the-art interface built with **Tailwind CSS** and **Framer Motion** for a smooth, high-fidelity experience.
+
 
 ---
 
 ## 🛠️ Tech Stack
 
 ### Frontend
-- **Framework**: [React 19](https://react.dev/) + [Vite](https://vitejs.dev/)
-- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
-- **Animations**: [Framer Motion](https://www.framer.com/motion/)
-- **Icons**: [Lucide React](https://lucide.dev/)
-- **Charts**: [Recharts](https://recharts.org/)
-- **Auth/Database**: [Firebase](https://firebase.google.com/)
+- **Charts**: React
+- **Auth/Database**:Cloud Firestore
 
 ### Backend
-- **Language**: [Python 3.10+](https://www.python.org/)
-- **Framework**: [FastAPI](https://fastapi.tiangolo.com/)
-- **AI Engine**: [Google Gemini (GenAI)](https://ai.google.dev/)
-- **Orchestration**: [LangChain](https://www.langchain.com/)
-- **Vector Database**: [FAISS](https://github.com/facebookresearch/faiss)
+- **Language**: Python 
+- **Framework**: FastAPI
+- **Orchestration**: LangChain 
+- **Vector Database**: FAISS 
 
 ---
 
