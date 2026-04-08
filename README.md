@@ -4,7 +4,7 @@ Zentrix is a sophisticated, AI-driven learning platform designed to turn your do
 
 ---
 
-## ✨ Key Features
+##  Key Features
 
 - **🧠 Intelligent RAG Assistant**: Upload your PDFs and engage in meaningful conversations with an AI that truly "understands" your content.
 - **📊 Dynamic Dashboard**: Visualize your learning journey with streak trackers, activity heatmaps, and progress charts.
@@ -14,7 +14,7 @@ Zentrix is a sophisticated, AI-driven learning platform designed to turn your do
 
 ---
 
-## 🛠️ Tech Stack
+##  Tech Stack
 
 ### Frontend
 - **Charts**: React
@@ -28,7 +28,7 @@ Zentrix is a sophisticated, AI-driven learning platform designed to turn your do
 
 ---
 
-## 🚀 Getting Started
+##  Getting Started
 
 Follow these steps to get Zentrix running locally on your machine.
 
@@ -62,7 +62,7 @@ Ensure your Firebase configuration is correctly set up in the frontend environme
 
 ---
 
-## 📦 Project Structure
+##  Project Structure
 
 ```text
 Zentrix/
