@@ -1,4 +1,4 @@
-# 🌀 Zentrix
+#  Zentrix
 
 Zentrix is a sophisticated, AI-driven learning platform designed to turn your documents into actionable knowledge. Whether you're a student mastering new concepts or a professional managing dense information, Zentrix acts as your personal digital companion, providing deep insights through retrieval-augmented intelligence.
 
@@ -73,6 +73,3 @@ Zentrix/
 
 ---
 
-<div align="center">
-  <p>Built with ❤️ by the Zentrix Team</p>
-</div>
