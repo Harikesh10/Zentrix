@@ -6,10 +6,10 @@ Zentrix is a sophisticated, AI-driven learning platform designed to turn your do
 
 ##  Key Features
 
-- **🧠 Intelligent RAG Assistant**: Upload your PDFs and engage in meaningful conversations with an AI that truly "understands" your content.
-- **📊 Dynamic Dashboard**: Visualize your learning journey with streak trackers, activity heatmaps, and progress charts.
-- **🃏 Smart Flashcards**: Organize and review core concepts with an elegant, interactive flashcard system.
-- **🔥 Persistence & Synced History**: Your chat history and learning progress are securely stored and synced across sessions thanks to Firebase integration.
+-  Intelligent RAG Assistant**: Upload your PDFs and engage in meaningful conversations with an AI that truly "understands" your content.
+-  Dynamic Dashboard**: Visualize your learning journey with streak trackers, activity heatmaps, and progress charts.
+-  Smart Flashcards**: Organize and review core concepts with an elegant, interactive flashcard system.
+-  Persistence & Synced History**: Your chat history and learning progress are securely stored and synced across sessions thanks to Firebase integration.
 
 
 ---
