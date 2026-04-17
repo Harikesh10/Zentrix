@@ -74,7 +74,7 @@ const Navbar = () => {
                             <div className="flex items-center gap-2">
                                 <div className="w-9 h-9 rounded-full overflow-hidden bg-slate-800 border-2 border-slate-700/50 flex items-center justify-center shrink-0">
                                     {user.photoURL ? (
-                                        <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" />
+                                        <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                                     ) : (
                                         <span className="text-white text-xs font-bold">{((user.displayName || user.email) || 'U').charAt(0).toUpperCase()}</span>
                                     )}

@@ -120,9 +120,12 @@ async def chat(request: ChatRequest):
     except Exception as e:
         import traceback
         traceback.print_exc()
-        if "400" in str(e):
-             raise HTTPException(status_code=400, detail=f"API Error: {str(e)}. Check your API key or quota.")
-        raise HTTPException(status_code=500, detail=f"Internal Error: {str(e)}")
+        error_msg = str(e)
+        if "503" in error_msg:
+             raise HTTPException(status_code=503, detail="The AI model is currently unavailable. Please try again in a few moments.")
+        if "400" in error_msg:
+             raise HTTPException(status_code=400, detail=f"API Error: {error_msg}. Check your API key or quota.")
+        raise HTTPException(status_code=500, detail=f"Internal Error: {error_msg}")
 
 @app.get("/stats/{session_id}")
 async def get_stats(session_id: str):
