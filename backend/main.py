@@ -31,7 +31,7 @@ if not api_key:
     print("Warning: GOOGLE_API_KEY not found in environment variables.")
 
 client = genai.Client(api_key=api_key)
-MODEL_NAME = "gemini-2.5-flash"
+MODEL_NAME = "gemini-3.1-flash-lite-preview"
 # Initialize Embeddings globally
 embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001", google_api_key=api_key)
 
