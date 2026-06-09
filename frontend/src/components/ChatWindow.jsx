@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
-import { FaPaperPlane, FaRobot, FaUser, FaPlus, FaSpinner } from 'react-icons/fa';
+import { FaPaperPlane, FaRobot, FaUser, FaPlus, FaSpinner, FaEdit } from 'react-icons/fa';
 import { db } from '../firebase';
 import { doc, getDoc, collection, addDoc, serverTimestamp, updateDoc, arrayUnion } from 'firebase/firestore';
 
@@ -56,6 +56,8 @@ const ChatWindow = ({ user, sessionId, onSessionChange, onUploadComplete }) => {
     const [isLoading, setIsLoading] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [typingIdx, setTypingIdx] = useState(-1);
+    const [editingIdx, setEditingIdx] = useState(-1);
+    const [editText, setEditText] = useState('');
 
     const messagesEndRef = useRef(null);
     const fileInputRef = useRef(null);
@@ -127,21 +129,24 @@ const ChatWindow = ({ user, sessionId, onSessionChange, onUploadComplete }) => {
         if (!currentSessionId && user) {
              newMessages = [defaultMessages[0], userMessage];
              setMessages(newMessages); 
-             currentSessionId = await createChatSession(newMessages, input.slice(0, 30));
+             currentSessionId = await createChatSession(newMessages, "Generating title...");
+             
+             axios.post('http://localhost:8000/generate_title', { message: input })
+                 .then(async (res) => {
+                     if (res.data.title) {
+                         await updateDoc(doc(db, 'chats', currentSessionId), { title: res.data.title });
+                     }
+                 })
+                 .catch(err => console.error("Error generating title:", err));
         } else {
              newMessages = [...messages, userMessage];
              setMessages(newMessages); 
              
              if (currentSessionId) {
-                 // Update title if it's the second message in the array after default message
-                 const shouldUpdateTitle = messages.length <= 2;
                  const updateData = {
                      messages: newMessages,
                      updatedAt: serverTimestamp()
                  };
-                 if (shouldUpdateTitle) {
-                     updateData.title = input.slice(0, 30);
-                 }
                  
                  const chatRef = doc(db, 'chats', currentSessionId);
                  await updateDoc(chatRef, updateData);
@@ -233,6 +238,30 @@ const ChatWindow = ({ user, sessionId, onSessionChange, onUploadComplete }) => {
         }
     };
 
+    const handleSaveEdit = async (idx) => {
+        if (!editText.trim()) {
+            setEditingIdx(-1);
+            return;
+        }
+        
+        const newMessages = [...messages];
+        newMessages[idx] = { ...newMessages[idx], content: editText };
+        
+        setMessages(newMessages);
+        setEditingIdx(-1);
+        
+        if (sessionId) {
+            try {
+                await updateDoc(doc(db, 'chats', sessionId), {
+                    messages: newMessages,
+                    updatedAt: serverTimestamp()
+                });
+            } catch (err) {
+                console.error("Error saving edited message:", err);
+            }
+        }
+    };
+
     return (
         <div style={{
             flex: 1,
@@ -280,6 +309,7 @@ const ChatWindow = ({ user, sessionId, onSessionChange, onUploadComplete }) => {
                             flexDirection: 'column',
                             alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
                         }}
+                        className="group"
                     >
                         {/* Content Container */}
                         <div style={{
@@ -289,6 +319,17 @@ const ChatWindow = ({ user, sessionId, onSessionChange, onUploadComplete }) => {
                             gap: '1rem',
                             alignItems: 'flex-start'
                         }}>
+                            {/* Edit Action */}
+                            {msg.role === 'user' && editingIdx !== idx && (
+                                <button 
+                                    onClick={() => { setEditingIdx(idx); setEditText(msg.content); }}
+                                    className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-slate-400 hover:text-white rounded-lg hover:bg-white/5 mt-1"
+                                    title="Edit message"
+                                    style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
+                                >
+                                    <FaEdit size={14} />
+                                </button>
+                            )}
                             {/* Avatar for Assistant only */}
                             {msg.role !== 'user' && (
                                 <div style={{
@@ -319,7 +360,41 @@ const ChatWindow = ({ user, sessionId, onSessionChange, onUploadComplete }) => {
                                 wordBreak: 'break-word',
                                 fontFamily: 'inherit'
                             }}>
-                                {msg.role === 'assistant' && idx === typingIdx ? (
+                                {editingIdx === idx ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', width: '100%', minWidth: '300px' }}>
+                                        <textarea
+                                            value={editText}
+                                            onChange={(e) => setEditText(e.target.value)}
+                                            style={{
+                                                width: '100%',
+                                                background: 'rgba(0,0,0,0.2)',
+                                                border: '1px solid rgba(255,255,255,0.2)',
+                                                borderRadius: '8px',
+                                                padding: '0.75rem',
+                                                color: 'white',
+                                                minHeight: '80px',
+                                                outline: 'none',
+                                                resize: 'vertical',
+                                                fontFamily: 'inherit',
+                                                fontSize: '1rem'
+                                            }}
+                                        />
+                                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                                            <button 
+                                                onClick={() => setEditingIdx(-1)}
+                                                style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: 'white', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, transition: 'all 0.2s' }}
+                                                onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                                                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                            >Cancel</button>
+                                            <button 
+                                                onClick={() => handleSaveEdit(idx)}
+                                                style={{ background: '#3b82f6', border: 'none', color: 'white', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, transition: 'all 0.2s' }}
+                                                onMouseOver={(e) => e.currentTarget.style.background = '#2563eb'}
+                                                onMouseOut={(e) => e.currentTarget.style.background = '#3b82f6'}
+                                            >Save</button>
+                                        </div>
+                                    </div>
+                                ) : msg.role === 'assistant' && idx === typingIdx ? (
                                     <TypewriterText
                                         content={msg.content}
                                         speed={18}

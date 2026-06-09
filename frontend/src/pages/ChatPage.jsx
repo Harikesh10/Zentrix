@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import ChatWindow from '../components/ChatWindow';
 import { db, auth } from '../firebase';
-import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
-import { Plus, MessageSquare, Menu, X } from 'lucide-react';
+import { Plus, MessageSquare, Menu, X, Pin, Trash2, MoreHorizontal, Edit2, Check } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
 
 const ChatPage = () => {
@@ -32,6 +32,25 @@ const ChatPage = () => {
     }, [isDemoMode]);
 
     const [chatsLoaded, setChatsLoaded] = useState(false);
+    const [openMenuId, setOpenMenuId] = useState(null);
+    const [editingChatId, setEditingChatId] = useState(null);
+    const [editingTitle, setEditingTitle] = useState('');
+
+    const handleEditTitle = async (e, chatId) => {
+        if (e) e.stopPropagation();
+        if (!activeUser || !editingTitle.trim()) {
+            setEditingChatId(null);
+            return;
+        }
+        try {
+            await updateDoc(doc(db, 'chats', chatId), {
+                title: editingTitle
+            });
+        } catch (err) {
+            console.error('Error updating title:', err);
+        }
+        setEditingChatId(null);
+    };
 
     useEffect(() => {
         if (!activeUser) {
@@ -49,6 +68,8 @@ const ChatPage = () => {
             });
             // Sort client-side to avoid needing a composite index in Firestore
             chatsData.sort((a, b) => {
+                if (a.isPinned && !b.isPinned) return -1;
+                if (!a.isPinned && b.isPinned) return 1;
                 const timeA = a.updatedAt?.toMillis() || 0;
                 const timeB = b.updatedAt?.toMillis() || 0;
                 return timeB - timeA;
@@ -94,6 +115,33 @@ const ChatPage = () => {
         }
     };
 
+    const handlePinChat = async (e, chatId, currentStatus) => {
+        e.stopPropagation();
+        if (!activeUser) return;
+        try {
+            await updateDoc(doc(db, 'chats', chatId), {
+                isPinned: !currentStatus
+            });
+        } catch (err) {
+            console.error('Error pinning chat:', err);
+        }
+    };
+
+    const handleDeleteChat = async (e, chatId) => {
+        e.stopPropagation();
+        if (!activeUser) return;
+        if (window.confirm("Are you sure you want to delete this chat?")) {
+            try {
+                if (currentChatId === chatId) {
+                    setCurrentChatId(null);
+                }
+                await deleteDoc(doc(db, 'chats', chatId));
+            } catch (err) {
+                console.error('Error deleting chat:', err);
+            }
+        }
+    };
+
     return (
         <div className="flex flex-col md:flex-row h-screen w-full bg-[#020617] overflow-hidden">
             {/* Sidebar */}
@@ -114,21 +162,88 @@ const ChatPage = () => {
                     
                     <div className="mt-6 flex-1 overflow-y-auto">
                         <h3 className="text-xs font-bold text-slate-500 mb-3 px-2 uppercase tracking-wider">Your chats</h3>
+                        {openMenuId && (
+                            <div 
+                                className="fixed inset-0 z-40" 
+                                onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); }}
+                            />
+                        )}
                         <div className="space-y-1">
                             {chats.map(chat => (
-                                <button
-                                    key={chat.id}
-                                    onClick={() => {
-                                        setCurrentChatId(chat.id);
-                                        if (window.innerWidth < 768) {
-                                            setIsSidebarOpen(false);
-                                        }
-                                    }}
-                                    className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all group ${currentChatId === chat.id ? 'bg-[#1e293b] text-white shadow-sm' : 'text-slate-400 hover:bg-[#1e293b]/50 hover:text-slate-200'}`}
-                                >
-                                    <MessageSquare size={16} className={`shrink-0 ${currentChatId === chat.id ? 'text-blue-500' : 'text-slate-500 group-hover:text-slate-400'}`} />
-                                    <span className="text-sm truncate font-medium">{chat.title || 'New Chat'}</span>
-                                </button>
+                                <div key={chat.id} className="relative group">
+                                    {editingChatId === chat.id ? (
+                                        <div className={`w-full flex items-center gap-2 p-3 rounded-xl text-left transition-all ${currentChatId === chat.id ? 'bg-[#1e293b] text-white shadow-sm' : 'text-slate-400 bg-[#1e293b]/30'}`}>
+                                            <MessageSquare size={16} className="shrink-0 text-slate-500" />
+                                            <input 
+                                                autoFocus
+                                                value={editingTitle}
+                                                onChange={(e) => setEditingTitle(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') handleEditTitle(e, chat.id);
+                                                    if (e.key === 'Escape') setEditingChatId(null);
+                                                }}
+                                                className="flex-1 bg-transparent border-none text-sm font-medium text-white outline-none w-full min-w-0"
+                                            />
+                                            <button onClick={(e) => handleEditTitle(e, chat.id)} className="text-blue-400 hover:text-blue-300 p-1">
+                                                <Check size={16} />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <button
+                                            onClick={() => {
+                                                setCurrentChatId(chat.id);
+                                                if (window.innerWidth < 768) {
+                                                    setIsSidebarOpen(false);
+                                                }
+                                            }}
+                                            className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all relative overflow-hidden ${currentChatId === chat.id ? 'bg-[#1e293b] text-white shadow-sm' : 'text-slate-400 hover:bg-[#1e293b]/50 hover:text-slate-200'}`}
+                                        >
+                                            {chat.isPinned ? (
+                                                <Pin size={16} className={`shrink-0 ${currentChatId === chat.id ? 'text-blue-500' : 'text-blue-400 group-hover:text-blue-300'}`} fill="currentColor" />
+                                            ) : (
+                                                <MessageSquare size={16} className={`shrink-0 ${currentChatId === chat.id ? 'text-blue-500' : 'text-slate-500 group-hover:text-slate-400'}`} />
+                                            )}
+                                            <span className="text-sm truncate font-medium flex-1 pr-8">{chat.title || 'New Chat'}</span>
+                                            
+                                            <div className={`absolute right-2 items-center bg-gradient-to-l from-[#1e293b] via-[#1e293b] to-transparent pl-4 ${currentChatId === chat.id ? 'flex' : 'hidden group-hover:flex'}`}>
+                                                <div 
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setOpenMenuId(openMenuId === chat.id ? null : chat.id);
+                                                    }} 
+                                                    className="text-slate-400 hover:text-white p-1.5 rounded-md hover:bg-slate-700/50 cursor-pointer"
+                                                >
+                                                    <MoreHorizontal size={16} />
+                                                </div>
+                                            </div>
+                                        </button>
+                                    )}
+
+                                    {/* Dropdown Menu */}
+                                    {openMenuId === chat.id && (
+                                        <div className="absolute right-4 top-10 w-36 bg-slate-800 border border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden flex flex-col py-1">
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); setEditingChatId(chat.id); setEditingTitle(chat.title || 'New Chat'); setOpenMenuId(null); }}
+                                                className="flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-white w-full text-left transition-colors"
+                                            >
+                                                <Edit2 size={14} /> Rename
+                                            </button>
+                                            <button 
+                                                onClick={(e) => { handlePinChat(e, chat.id, chat.isPinned); setOpenMenuId(null); }}
+                                                className="flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-white w-full text-left transition-colors"
+                                            >
+                                                <Pin size={14} className={chat.isPinned ? 'fill-current' : ''} /> {chat.isPinned ? 'Unpin' : 'Pin'}
+                                            </button>
+                                            <div className="h-px bg-slate-700 my-1 mx-2"></div>
+                                            <button 
+                                                onClick={(e) => { handleDeleteChat(e, chat.id); setOpenMenuId(null); }}
+                                                className="flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 w-full text-left transition-colors"
+                                            >
+                                                <Trash2 size={14} /> Delete
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                             ))}
                             {chats.length === 0 && activeUser && (
                                 <div className="text-slate-500 text-sm text-center italic mt-4 px-2">

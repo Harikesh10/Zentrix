@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Flame, Bot, Plus, MessageSquare, Layers, Code, Database } from 'lucide-react';
+import { Flame, Bot, Plus, MessageSquare, Layers, Code, Database, ChevronLeft, ChevronRight } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { auth, db } from '../firebase';
@@ -23,10 +23,42 @@ const DashboardPage = () => {
     const [authLoaded, setAuthLoaded] = useState(false);
     
     // calendar and graph state
+    const [currentDate, setCurrentDate] = useState(new Date());
+    const [currentGraphDate, setCurrentGraphDate] = useState(new Date());
     const [activeDates, setActiveDates] = useState([]);
     const [calendarBlanks, setCalendarBlanks] = useState([]);
     const [calendarDays, setCalendarDays] = useState([]);
     const [graphData, setGraphData] = useState([]);
+    const [allGraphHistory, setAllGraphHistory] = useState({});
+
+    useEffect(() => {
+        const year = currentGraphDate.getFullYear();
+        const month = currentGraphDate.getMonth();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        
+        const newGraphData = [];
+        for (let i = 1; i <= daysInMonth; i++) {
+            const d = new Date(year, month, i);
+            const dateStr = d.toLocaleDateString();
+            newGraphData.push({
+                dateKey: dateStr,
+                day: i.toString(),
+                questions: allGraphHistory[dateStr] || 0
+            });
+        }
+        setGraphData(newGraphData);
+    }, [currentGraphDate, allGraphHistory]);
+
+    useEffect(() => {
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        const firstDayOfMonth = new Date(year, month, 1).getDay(); // 0(Sun) - 6(Sat)
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const blanks = Array(firstDayOfMonth).fill(null);
+        const monthDays = Array.from({length: daysInMonth}, (_, i) => new Date(year, month, i + 1));
+        setCalendarBlanks(blanks);
+        setCalendarDays(monthDays);
+    }, [currentDate]);
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, u => {
@@ -41,34 +73,10 @@ const DashboardPage = () => {
             const now = new Date();
             const todayStr = now.toLocaleDateString();
             
-            // 1. Resolve Calendar Settings First
-            const year = now.getFullYear();
-            const month = now.getMonth();
-            const firstDayOfMonth = new Date(year, month, 1).getDay(); // 0(Sun) - 6(Sat)
-            const daysInMonth = new Date(year, month + 1, 0).getDate();
-            const blanks = Array(firstDayOfMonth).fill(null);
-            const monthDays = Array.from({length: daysInMonth}, (_, i) => new Date(year, month, i + 1));
-            setCalendarBlanks(blanks);
-            setCalendarDays(monthDays);
-            
-            // Default flat graph data for guests / before load
-            const initialGraphData = [];
-            for (let i = 6; i >= 0; i--) {
-                const d = new Date(now);
-                d.setDate(d.getDate() - i);
-                const dateStr = d.toLocaleDateString();
-                const dayLabel = d.toLocaleDateString('en-US', { weekday: 'short' });
-                initialGraphData.push({
-                    dateKey: dateStr,
-                    day: dayLabel,
-                    questions: 0
-                });
-            }
-
             if (!activeUser) {
                 setStreak(0);
                 setActiveDates([]);
-                setGraphData(initialGraphData);
+                setAllGraphHistory({});
                 setQuestionsLearned(0);
                 setIsLoading(false);
                 return;
@@ -156,21 +164,8 @@ const DashboardPage = () => {
                 totalQs += localGraphHistory[k];
             }
             setQuestionsLearned(totalQs);
+            setAllGraphHistory(localGraphHistory);
             
-            // Build Final Graph Data for logged-in user
-            const finalGraphData = [];
-            for (let i = 6; i >= 0; i--) {
-                const d = new Date(now);
-                d.setDate(d.getDate() - i);
-                const dateStr = d.toLocaleDateString();
-                const dayLabel = d.toLocaleDateString('en-US', { weekday: 'short' });
-                finalGraphData.push({
-                    dateKey: dateStr,
-                    day: dayLabel,
-                    questions: localGraphHistory[dateStr] || 0
-                });
-            }
-            setGraphData(finalGraphData);
             setIsLoading(false);
         };
         
@@ -180,9 +175,10 @@ const DashboardPage = () => {
     // Custom Tooltip for Recharts
     const CustomTooltip = ({ active, payload, label }) => {
         if (active && payload && payload.length) {
+            const dateStr = payload[0].payload.dateKey;
             return (
                 <div className="bg-slate-800 border border-slate-700 p-3 rounded-lg shadow-xl">
-                    <p className="text-slate-300 text-sm font-medium mb-1">{label}</p>
+                    <p className="text-slate-300 text-sm font-medium mb-1">{dateStr}</p>
                     <p className="text-blue-400 font-bold">
                         {payload[0].value} Questions
                     </p>
@@ -261,9 +257,28 @@ const DashboardPage = () => {
                                 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
                                 className="lg:col-span-2 bg-slate-900/50 border border-white/10 rounded-3xl p-6 lg:p-8 backdrop-blur-xl flex flex-col justify-between shadow-2xl"
                             >
-                                <div className="mb-6">
-                                    <h3 className="text-lg font-medium text-slate-300">Activity Overview</h3>
-                                    <p className="text-sm text-slate-500 mt-1">Number of questions asked continuously over active days.</p>
+                                <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                    <div>
+                                        <h3 className="text-lg font-medium text-slate-300">Activity Overview</h3>
+                                        <p className="text-sm text-slate-500 mt-1">Number of questions asked per day this month.</p>
+                                    </div>
+                                    <div className="flex items-center gap-3 bg-slate-950/40 p-2 rounded-xl border border-white/5">
+                                        <button 
+                                            onClick={() => setCurrentGraphDate(new Date(currentGraphDate.getFullYear(), currentGraphDate.getMonth() - 1, 1))}
+                                            className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors"
+                                        >
+                                            <ChevronLeft size={18} />
+                                        </button>
+                                        <span className="text-sm font-bold text-slate-200 min-w-[100px] text-center">
+                                            {currentGraphDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                                        </span>
+                                        <button 
+                                            onClick={() => setCurrentGraphDate(new Date(currentGraphDate.getFullYear(), currentGraphDate.getMonth() + 1, 1))}
+                                            className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors"
+                                        >
+                                            <ChevronRight size={18} />
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="h-64 w-full mt-auto">
                                     <ResponsiveContainer width="100%" height="100%">
@@ -330,6 +345,24 @@ const DashboardPage = () => {
                                     
                                     {/* Calendar View */}
                                     <div className="w-full max-w-[260px] bg-slate-950/40 p-5 rounded-2xl border border-white/5">
+                                        {/* Month Navigation */}
+                                        <div className="flex items-center justify-between mb-4">
+                                            <button 
+                                                onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))}
+                                                className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors"
+                                            >
+                                                <ChevronLeft size={16} />
+                                            </button>
+                                            <span className="text-sm font-bold text-slate-200">
+                                                {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                                            </span>
+                                            <button 
+                                                onClick={() => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))}
+                                                className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition-colors"
+                                            >
+                                                <ChevronRight size={16} />
+                                            </button>
+                                        </div>
                                         {/* Days Header */}
                                         <div className="grid grid-cols-7 gap-1 text-center mb-3">
                                             {['S','M','T','W','T','F','S'].map((day, i) => (

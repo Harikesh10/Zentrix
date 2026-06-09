@@ -40,10 +40,15 @@ embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001", g
 # In a real app, use Redis or a database.
 session_store = {}
 
+from typing import Optional
+
 class ChatRequest(BaseModel):
-    session_id: str
+    session_id: Optional[str] = None
     message: str
     history: list = []  # Added to rebuild context from DB if necessary
+
+class TitleRequest(BaseModel):
+    message: str
 
 @app.get("/")
 def read_root():
@@ -135,6 +140,21 @@ async def get_stats(session_id: str):
     history = session_store[session_id]['history']
     question_count = sum(1 for msg in history if msg['role'] == 'user')
     return {"question_count": question_count}
+
+@app.post("/generate_title")
+async def generate_title(request: TitleRequest):
+    try:
+        prompt = f"Generate a short, professional, and neat title (maximum 5 words) for a chat that starts with the following message. Respond ONLY with the title, no quotes or extra text.\n\nMessage: {request.message}"
+        response = client.models.generate_content(
+            model=MODEL_NAME,
+            contents=prompt,
+        )
+        title = response.text.strip().strip('"').strip("'")
+        return {"title": title}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
