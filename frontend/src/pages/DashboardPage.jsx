@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Flame, Bot, Plus, MessageSquare, Layers, Code, Database, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Flame, Bot, Plus, MessageSquare, Layers, Code, Database, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { auth, db } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
 
 const DashboardPage = () => {
     const navigate = useNavigate();
@@ -21,6 +21,15 @@ const DashboardPage = () => {
     const [questionsLearned, setQuestionsLearned] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
     const [authLoaded, setAuthLoaded] = useState(false);
+
+    // New State for Questions, Flashcards & Modals
+    const [selectedDate, setSelectedDate] = useState(new Date().toLocaleDateString());
+    const [allQuestions, setAllQuestions] = useState([]);
+    const [allFlashcards, setAllFlashcards] = useState([]);
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [newFlashcardQ, setNewFlashcardQ] = useState('');
+    const [newFlashcardA, setNewFlashcardA] = useState('');
+    const [selectedItem, setSelectedItem] = useState(null); // { type, question, answer, date }
     
     // calendar and graph state
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -144,6 +153,7 @@ const DashboardPage = () => {
             const chatSnaps = await getDocs(q);
             
             const localGraphHistory = {}; 
+            const extractedQuestions = [];
             
             chatSnaps.forEach(chatDoc => {
                 const chatData = chatDoc.data();
@@ -155,8 +165,25 @@ const DashboardPage = () => {
                         localGraphHistory[chatDateStr] = 0;
                     }
                     localGraphHistory[chatDateStr] += userQs;
+
+                    for (let i = 0; i < chatData.messages.length; i++) {
+                        const msg = chatData.messages[i];
+                        if (msg.role === 'user') {
+                            const answerMsg = chatData.messages[i+1];
+                            const answer = answerMsg && answerMsg.role === 'assistant' ? answerMsg.content : "No answer provided.";
+                            extractedQuestions.push({
+                                id: `${chatDoc.id}-${i}`,
+                                question: msg.content,
+                                answer: answer,
+                                date: chatDateStr,
+                                timestamp: chatData.updatedAt ? chatData.updatedAt.toMillis() : Date.now()
+                            });
+                        }
+                    }
                 }
             });
+            extractedQuestions.sort((a,b) => b.timestamp - a.timestamp);
+            setAllQuestions(extractedQuestions);
             
             // Compute total questions
             let totalQs = 0;
@@ -165,12 +192,61 @@ const DashboardPage = () => {
             }
             setQuestionsLearned(totalQs);
             setAllGraphHistory(localGraphHistory);
+
+            // 5. Fetch Flashcards
+            const qFlashcards = query(collection(db, 'flashcards'), where('userId', '==', activeUser.uid));
+            const fcSnaps = await getDocs(qFlashcards);
+            const extractedFlashcards = [];
+            fcSnaps.forEach(fcDoc => {
+                const fcData = fcDoc.data();
+                const fcDateStr = fcData.createdAt ? new Date(fcData.createdAt.toMillis()).toLocaleDateString() : todayStr;
+                extractedFlashcards.push({
+                    id: fcDoc.id,
+                    question: fcData.question,
+                    answer: fcData.answer,
+                    date: fcDateStr,
+                    timestamp: fcData.createdAt ? fcData.createdAt.toMillis() : Date.now()
+                });
+            });
+            extractedFlashcards.sort((a,b) => b.timestamp - a.timestamp);
+            setAllFlashcards(extractedFlashcards);
             
             setIsLoading(false);
         };
         
         fetchDashboardData();
     }, [activeUser]);
+
+    const handleCreateFlashcard = async (e) => {
+        e.preventDefault();
+        if (!newFlashcardQ.trim() || !newFlashcardA.trim() || !activeUser) return;
+        
+        try {
+            const docRef = await addDoc(collection(db, 'flashcards'), {
+                userId: activeUser.uid,
+                question: newFlashcardQ,
+                answer: newFlashcardA,
+                createdAt: serverTimestamp()
+            });
+            const newFc = {
+                id: docRef.id,
+                question: newFlashcardQ,
+                answer: newFlashcardA,
+                date: new Date().toLocaleDateString(),
+                timestamp: Date.now()
+            };
+            setAllFlashcards([newFc, ...allFlashcards]);
+            setNewFlashcardQ('');
+            setNewFlashcardA('');
+            setIsCreateModalOpen(false);
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    // Filtered data for UI
+    const displayQuestions = allQuestions.filter(q => q.date === selectedDate);
+    const displayFlashcards = allFlashcards.filter(f => f.date === selectedDate);
 
     // Custom Tooltip for Recharts
     const CustomTooltip = ({ active, payload, label }) => {
@@ -380,7 +456,7 @@ const DashboardPage = () => {
                                                 const isToday = dayStr === new Date().toLocaleDateString();
                                                 
                                                 return (
-                                                    <div key={i} className={`aspect-square flex items-center justify-center rounded-lg transition-all ${isToday && !isDateActive ? 'border border-slate-600' : ''}`}>
+                                                    <div key={i} onClick={() => setSelectedDate(dayStr)} className={`aspect-square flex items-center justify-center rounded-lg transition-all cursor-pointer hover:bg-white/5 ${selectedDate === dayStr ? 'bg-white/10 ring-2 ring-blue-500/50' : ''} ${isToday && !isDateActive ? 'border border-slate-600' : ''}`}>
                                                         {isDateActive ? (
                                                             <div className="text-orange-500 drop-shadow-[0_0_5px_rgba(249,115,22,0.6)] animate-pulse">
                                                                 <Flame size={20} fill="currentColor" strokeWidth={1} />
@@ -413,20 +489,20 @@ const DashboardPage = () => {
                         </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                            {dummyQuestions.map((q) => (
-                                <div key={q.id} className="bg-slate-900/40 hover:bg-slate-900/80 border border-white/5 hover:border-blue-500/30 rounded-2xl p-5 transition-all group flex flex-col justify-between cursor-pointer shadow-lg hover:shadow-blue-500/10">
+                            {displayQuestions.length > 0 ? displayQuestions.map((q) => (
+                                <div key={q.id} onClick={() => setSelectedItem({ type: 'question', ...q })} className="bg-slate-900/40 hover:bg-slate-900/80 border border-white/5 hover:border-blue-500/30 rounded-2xl p-5 transition-all group flex flex-col justify-between cursor-pointer shadow-lg hover:shadow-blue-500/10">
                                     <div className="flex items-start gap-4 mb-5">
                                         <div className="mt-1 flex-shrink-0 p-2 bg-blue-500/10 rounded-lg text-blue-400 group-hover:scale-110 transition-transform">
                                             <MessageSquare size={18} />
                                         </div>
-                                        <p className="text-sm font-medium text-slate-300 leading-relaxed group-hover:text-blue-100 transition-colors">"{q.text}"</p>
+                                        <p className="text-sm font-medium text-slate-300 leading-relaxed group-hover:text-blue-100 transition-colors line-clamp-3">"{q.question}"</p>
                                     </div>
                                     <div className="flex items-center justify-between text-xs text-slate-500 border-t border-white/5 pt-4 mt-auto">
                                         <span>{q.date}</span>
                                         <span className="text-blue-500/0 group-hover:text-blue-400 transition-colors font-semibold flex items-center gap-1">Review Answer &rarr;</span>
                                     </div>
                                 </div>
-                            ))}
+                            )) : <div className="col-span-full text-slate-500 text-center py-8">No questions found for {selectedDate}.</div>}
                         </div>
                     </section>
 
@@ -437,26 +513,110 @@ const DashboardPage = () => {
                                 <span className="text-purple-500 font-bold opacity-70">#</span> Flashcards
                                 <span className="text-[10px] font-normal px-2.5 py-1 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 uppercase tracking-widest ml-2">Active Decks</span>
                             </h2>
-                            <button className="text-xs font-semibold bg-white/5 hover:bg-white/10 text-slate-300 px-4 py-2 rounded-xl transition-colors border border-white/10 flex items-center gap-2">
-                                <Plus size={16} /> New Deck
+                            <button onClick={() => setIsCreateModalOpen(true)} className="text-xs font-semibold bg-white/5 hover:bg-white/10 text-slate-300 px-4 py-2 rounded-xl transition-colors border border-white/10 flex items-center gap-2">
+                                <Plus size={16} /> New Flashcard
                             </button>
                         </div>
                         
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-                            {dummyDecks.map((deck) => (
-                                <div key={deck.id} className="bg-gradient-to-br from-slate-900/40 to-slate-950 border border-purple-500/10 hover:border-purple-500/30 rounded-3xl p-6 transition-all group cursor-pointer shadow-xl hover:shadow-purple-500/10 hover:-translate-y-1 flex flex-col items-center justify-center text-center">
+                            {displayFlashcards.length > 0 ? displayFlashcards.map((fc) => (
+                                <div key={fc.id} onClick={() => setSelectedItem({ type: 'flashcard', ...fc })} className="bg-gradient-to-br from-slate-900/40 to-slate-950 border border-purple-500/10 hover:border-purple-500/30 rounded-3xl p-6 transition-all group cursor-pointer shadow-xl hover:shadow-purple-500/10 hover:-translate-y-1 flex flex-col items-center justify-center text-center">
                                     <div className="p-5 bg-purple-500/10 text-purple-400 rounded-2xl mb-5 group-hover:scale-110 transition-transform shadow-[0_0_15px_rgba(168,85,247,0.15)] group-hover:shadow-[0_0_25px_rgba(168,85,247,0.3)]">
-                                        {deck.icon}
+                                        <Layers size={28} />
                                     </div>
-                                    <h3 className="text-sm font-bold text-slate-200 mb-1">{deck.title}</h3>
-                                    <p className="text-xs text-slate-500 font-medium">{deck.count} terms inside</p>
+                                    <h3 className="text-sm font-bold text-slate-200 mb-1 line-clamp-2">{fc.question}</h3>
+                                    <p className="text-xs text-slate-500 font-medium">{fc.date}</p>
                                 </div>
-                            ))}
+                            )) : <div className="col-span-full text-slate-500 text-center py-8">No flashcards created on {selectedDate}.</div>}
                         </div>
                     </section>
 
                 </div>
             </main>
+
+            {/* Detail Modal (Glassmorphism) */}
+            {selectedItem && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md" onClick={() => setSelectedItem(null)}></div>
+                    <motion.div 
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="relative bg-slate-900/60 border border-white/20 backdrop-blur-xl p-8 rounded-3xl max-w-2xl w-full max-h-[80vh] overflow-y-auto shadow-[0_0_50px_rgba(59,130,246,0.15)]"
+                    >
+                        <button onClick={() => setSelectedItem(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-full p-2 transition-all">
+                            <X size={20} />
+                        </button>
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className={`p-3 rounded-xl ${selectedItem.type === 'question' ? 'bg-blue-500/10 text-blue-400' : 'bg-purple-500/10 text-purple-400'}`}>
+                                {selectedItem.type === 'question' ? <MessageSquare size={24} /> : <Layers size={24} />}
+                            </div>
+                            <h2 className="text-2xl font-bold text-white">
+                                {selectedItem.type === 'question' ? 'Question Learned' : 'Flashcard'}
+                            </h2>
+                        </div>
+                        <div className="space-y-6">
+                            <div>
+                                <h3 className="text-sm uppercase tracking-widest text-slate-500 font-bold mb-2">Question</h3>
+                                <div className="bg-white/5 border border-white/10 rounded-2xl p-5 text-slate-200 text-lg leading-relaxed">
+                                    {selectedItem.question}
+                                </div>
+                            </div>
+                            <div>
+                                <h3 className="text-sm uppercase tracking-widest text-slate-500 font-bold mb-2">Answer</h3>
+                                <div className="bg-black/20 border border-white/5 rounded-2xl p-5 text-slate-300 text-md leading-relaxed whitespace-pre-wrap">
+                                    {selectedItem.answer}
+                                </div>
+                            </div>
+                        </div>
+                    </motion.div>
+                </div>
+            )}
+
+            {/* Create Flashcard Modal */}
+            {isCreateModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md" onClick={() => setIsCreateModalOpen(false)}></div>
+                    <motion.div 
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="relative bg-slate-900/80 border border-white/20 backdrop-blur-xl p-8 rounded-3xl max-w-lg w-full shadow-[0_0_50px_rgba(168,85,247,0.15)]"
+                    >
+                        <button onClick={() => setIsCreateModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-full p-2 transition-all">
+                            <X size={20} />
+                        </button>
+                        <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
+                            <span className="text-purple-500">#</span> Create Flashcard
+                        </h2>
+                        <form onSubmit={handleCreateFlashcard} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-400 mb-2">Question</label>
+                                <textarea 
+                                    required
+                                    value={newFlashcardQ}
+                                    onChange={e => setNewFlashcardQ(e.target.value)}
+                                    className="w-full bg-black/30 border border-white/10 rounded-xl p-4 text-white placeholder-slate-600 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all"
+                                    placeholder="E.g., What is the time complexity of binary search?"
+                                    rows="2"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-400 mb-2">Answer</label>
+                                <textarea 
+                                    required
+                                    value={newFlashcardA}
+                                    onChange={e => setNewFlashcardA(e.target.value)}
+                                    className="w-full bg-black/30 border border-white/10 rounded-xl p-4 text-white placeholder-slate-600 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all"
+                                    placeholder="E.g., O(log n)"
+                                    rows="4"
+                                />
+                            </div>
+                            <button type="submit" className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg active:scale-95 mt-4">
+                                Save Flashcard
+                            </button>
+                        </form>
+                    </motion.div>
+                </div>
+            )}
         </div>
     );
 };

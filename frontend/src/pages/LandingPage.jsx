@@ -49,16 +49,7 @@ const LandingPage = () => {
                             </Link>
                         </motion.div>
 
-                        {/* Marquee Quote */}
-                        <motion.div variants={fadeInUp} className="mt-12 w-full overflow-hidden relative opacity-70">
-                            <motion.div
-                                animate={{ x: ["100%", "-100%"] }}
-                                transition={{ repeat: Infinity, duration: 15, ease: "linear" }}
-                                className="whitespace-nowrap text-slate-500 font-mono text-sm tracking-wide italic"
-                            >
-                                “Bro really said ‘trust the process’ and then disappeared.”
-                            </motion.div>
-                        </motion.div>
+
                     </motion.div>
 
                     <motion.div

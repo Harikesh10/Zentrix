@@ -33,8 +33,17 @@ const ChatPage = () => {
 
     const [chatsLoaded, setChatsLoaded] = useState(false);
     const [openMenuId, setOpenMenuId] = useState(null);
+    const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
     const [editingChatId, setEditingChatId] = useState(null);
     const [editingTitle, setEditingTitle] = useState('');
+
+    useEffect(() => {
+        const handleClickOutside = () => setOpenMenuId(null);
+        if (openMenuId) {
+            document.addEventListener('click', handleClickOutside);
+        }
+        return () => document.removeEventListener('click', handleClickOutside);
+    }, [openMenuId]);
 
     const handleEditTitle = async (e, chatId) => {
         if (e) e.stopPropagation();
@@ -162,12 +171,6 @@ const ChatPage = () => {
                     
                     <div className="mt-6 flex-1 overflow-y-auto">
                         <h3 className="text-xs font-bold text-slate-500 mb-3 px-2 uppercase tracking-wider">Your chats</h3>
-                        {openMenuId && (
-                            <div 
-                                className="fixed inset-0 z-40" 
-                                onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); }}
-                            />
-                        )}
                         <div className="space-y-1">
                             {chats.map(chat => (
                                 <div key={chat.id} className="relative group">
@@ -209,7 +212,18 @@ const ChatPage = () => {
                                                 <div 
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        setOpenMenuId(openMenuId === chat.id ? null : chat.id);
+                                                        if (openMenuId === chat.id) {
+                                                            setOpenMenuId(null);
+                                                        } else {
+                                                            const rect = e.currentTarget.getBoundingClientRect();
+                                                            const menuWidth = 144; // w-36 = 144px
+                                                            let leftPos = rect.right + 10;
+                                                            if (leftPos + menuWidth > window.innerWidth) {
+                                                                leftPos = rect.right - menuWidth; 
+                                                            }
+                                                            setMenuPos({ top: Math.min(rect.top, window.innerHeight - 120), left: leftPos });
+                                                            setOpenMenuId(chat.id);
+                                                        }
                                                     }} 
                                                     className="text-slate-400 hover:text-white p-1.5 rounded-md hover:bg-slate-700/50 cursor-pointer"
                                                 >
@@ -219,30 +233,6 @@ const ChatPage = () => {
                                         </button>
                                     )}
 
-                                    {/* Dropdown Menu */}
-                                    {openMenuId === chat.id && (
-                                        <div className="absolute right-4 top-10 w-36 bg-slate-800 border border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden flex flex-col py-1">
-                                            <button 
-                                                onClick={(e) => { e.stopPropagation(); setEditingChatId(chat.id); setEditingTitle(chat.title || 'New Chat'); setOpenMenuId(null); }}
-                                                className="flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-white w-full text-left transition-colors"
-                                            >
-                                                <Edit2 size={14} /> Rename
-                                            </button>
-                                            <button 
-                                                onClick={(e) => { handlePinChat(e, chat.id, chat.isPinned); setOpenMenuId(null); }}
-                                                className="flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-white w-full text-left transition-colors"
-                                            >
-                                                <Pin size={14} className={chat.isPinned ? 'fill-current' : ''} /> {chat.isPinned ? 'Unpin' : 'Pin'}
-                                            </button>
-                                            <div className="h-px bg-slate-700 my-1 mx-2"></div>
-                                            <button 
-                                                onClick={(e) => { handleDeleteChat(e, chat.id); setOpenMenuId(null); }}
-                                                className="flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 w-full text-left transition-colors"
-                                            >
-                                                <Trash2 size={14} /> Delete
-                                            </button>
-                                        </div>
-                                    )}
                                 </div>
                             ))}
                             {chats.length === 0 && activeUser && (
@@ -288,6 +278,38 @@ const ChatPage = () => {
                     />
                 </div>
             </main>
+
+            {/* Global Dropdown Menu */}
+            {openMenuId && (
+                <div 
+                    className="fixed w-36 bg-slate-800 border border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden flex flex-col py-1"
+                    style={{ top: menuPos.top, left: menuPos.left }}
+                >
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); setEditingChatId(openMenuId); setEditingTitle(chats.find(c => c.id === openMenuId)?.title || 'New Chat'); setOpenMenuId(null); }}
+                        className="flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-white w-full text-left transition-colors"
+                    >
+                        <Edit2 size={14} /> Rename
+                    </button>
+                    <button 
+                        onClick={(e) => { 
+                            const chat = chats.find(c => c.id === openMenuId);
+                            if (chat) handlePinChat(e, chat.id, chat.isPinned); 
+                            setOpenMenuId(null); 
+                        }}
+                        className="flex items-center gap-2 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700 hover:text-white w-full text-left transition-colors"
+                    >
+                        <Pin size={14} className={chats.find(c => c.id === openMenuId)?.isPinned ? 'fill-current' : ''} /> {chats.find(c => c.id === openMenuId)?.isPinned ? 'Unpin' : 'Pin'}
+                    </button>
+                    <div className="h-px bg-slate-700 my-1 mx-2"></div>
+                    <button 
+                        onClick={(e) => { handleDeleteChat(e, openMenuId); setOpenMenuId(null); }}
+                        className="flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 w-full text-left transition-colors"
+                    >
+                        <Trash2 size={14} /> Delete
+                    </button>
+                </div>
+            )}
         </div>
     );
 };
