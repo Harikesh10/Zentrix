@@ -3,8 +3,9 @@ import ChatWindow from '../components/ChatWindow';
 import { db, auth } from '../firebase';
 import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
-import { Plus, MessageSquare, Menu, X, Pin, Trash2, MoreHorizontal, Edit2, Check } from 'lucide-react';
+import { Plus, MessageSquare, Menu, X, Pin, Trash2, MoreHorizontal, Edit2, Check, Bot } from 'lucide-react';
 import { useLocation } from 'react-router-dom';
+import NavActions from '../components/NavActions';
 
 const ChatPage = () => {
     const location = useLocation();
@@ -257,17 +258,22 @@ const ChatPage = () => {
 
             {/* Main Content */}
             <main className="flex-1 flex flex-col min-w-0 h-full relative">
-                <header className="p-4 flex items-center gap-4 bg-transparent z-10 sticky top-0 border-b border-transparent">
-                    <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="text-slate-400 hover:text-white md:hidden p-2 bg-[#1e293b] rounded-lg">
-                        {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
-                    </button>
-                    <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="hidden md:flex items-center text-slate-400 hover:text-white p-2 rounded-lg hover:bg-[#1e293b] transition-all">
-                        <Menu size={20} />
-                    </button>
-                    
-                    <h1 className="text-xl font-extrabold text-slate-50 tracking-tighter cursor-pointer ml-2 md:ml-0" onClick={() => window.location.href = '/'}>
-                        Zentrix<span className="text-blue-500">AI</span>
-                    </h1>
+                <header className="p-4 flex items-center justify-between bg-transparent z-10 sticky top-0 border-b border-transparent">
+                    <div className="flex items-center gap-4">
+                        <button onClick={() => setIsSidebarOpen(true)} className="md:hidden text-slate-400 hover:text-white p-2 bg-[#1e293b] rounded-lg">
+                            <Menu size={20} />
+                        </button>
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-[0_0_15px_rgba(59,130,246,0.4)]">
+                                <Bot size={18} className="text-white" />
+                            </div>
+                            <h2 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-300 tracking-tight flex items-center gap-2">
+                                Zentrix<span className="text-white">AI</span>
+                                {isDemoMode && <span className="text-[10px] bg-orange-500/20 text-orange-400 border border-orange-500/30 px-2 py-0.5 rounded-full uppercase tracking-widest ml-2">Demo</span>}
+                            </h2>
+                        </div>
+                    </div>
+                    <NavActions />
                 </header>
 
                 <div className="flex-1 flex flex-col w-full h-full relative overflow-hidden">

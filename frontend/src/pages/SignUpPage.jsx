@@ -5,6 +5,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { auth, googleProvider, signInWithPopup } from '../firebase';
 import { FcGoogle } from 'react-icons/fc';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
+import NavActions from '../components/NavActions';
 
 const SignUpPage = () => {
   const [name, setName] = useState('');
@@ -65,6 +67,9 @@ const SignUpPage = () => {
 
   return (
     <div className="min-h-screen bg-[#020617] text-white flex flex-col justify-center items-center p-4 relative overflow-hidden">
+      <div className="absolute top-6 right-8 z-50">
+          <NavActions />
+      </div>
       {/* Background Glow */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-indigo-500/10 rounded-full blur-[120px] pointer-events-none" />
 

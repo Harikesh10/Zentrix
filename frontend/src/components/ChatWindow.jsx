@@ -124,33 +124,33 @@ const ChatWindow = ({ user, sessionId, onSessionChange, onUploadComplete }) => {
 
         const userMessage = { role: 'user', content: input };
         let currentSessionId = sessionId;
-        
+
         let newMessages = [];
         if (!currentSessionId && user) {
-             newMessages = [defaultMessages[0], userMessage];
-             setMessages(newMessages); 
-             currentSessionId = await createChatSession(newMessages, "Generating title...");
-             
-             axios.post('http://localhost:8000/generate_title', { message: input })
-                 .then(async (res) => {
-                     if (res.data.title) {
-                         await updateDoc(doc(db, 'chats', currentSessionId), { title: res.data.title });
-                     }
-                 })
-                 .catch(err => console.error("Error generating title:", err));
+            newMessages = [defaultMessages[0], userMessage];
+            setMessages(newMessages);
+            currentSessionId = await createChatSession(newMessages, "Generating title...");
+
+            axios.post('http://localhost:8000/generate_title', { message: input })
+                .then(async (res) => {
+                    if (res.data.title) {
+                        await updateDoc(doc(db, 'chats', currentSessionId), { title: res.data.title });
+                    }
+                })
+                .catch(err => console.error("Error generating title:", err));
         } else {
-             newMessages = [...messages, userMessage];
-             setMessages(newMessages); 
-             
-             if (currentSessionId) {
-                 const updateData = {
-                     messages: newMessages,
-                     updatedAt: serverTimestamp()
-                 };
-                 
-                 const chatRef = doc(db, 'chats', currentSessionId);
-                 await updateDoc(chatRef, updateData);
-             }
+            newMessages = [...messages, userMessage];
+            setMessages(newMessages);
+
+            if (currentSessionId) {
+                const updateData = {
+                    messages: newMessages,
+                    updatedAt: serverTimestamp()
+                };
+
+                const chatRef = doc(db, 'chats', currentSessionId);
+                await updateDoc(chatRef, updateData);
+            }
         }
 
         setInput('');
@@ -165,10 +165,10 @@ const ChatWindow = ({ user, sessionId, onSessionChange, onUploadComplete }) => {
 
             const botMessage = { role: 'assistant', content: response.data.answer };
             setTypingIdx(newMessages.length);
-            
+
             const updatedMessages = [...newMessages, botMessage];
-            setMessages(updatedMessages); 
-            
+            setMessages(updatedMessages);
+
             if (currentSessionId) {
                 const chatRef = doc(db, 'chats', currentSessionId);
                 await updateDoc(chatRef, {
@@ -192,9 +192,9 @@ const ChatWindow = ({ user, sessionId, onSessionChange, onUploadComplete }) => {
 
         setIsUploading(true);
         let currentSessionId = sessionId;
-        
+
         const botMessage = { role: 'assistant', content: `Successfully uploaded: **${file.name}**. I've indexed the content and am ready to answer your questions.` };
-        
+
         if (!currentSessionId && user) {
             const initialMessages = [defaultMessages[0], botMessage];
             currentSessionId = await createChatSession(initialMessages, `PDF: ${file.name}`);
@@ -207,9 +207,9 @@ const ChatWindow = ({ user, sessionId, onSessionChange, onUploadComplete }) => {
                     updatedAt: serverTimestamp()
                 });
             }
-            setMessages(prev => [...prev, botMessage]); 
+            setMessages(prev => [...prev, botMessage]);
         }
-        
+
         const formData = new FormData();
         formData.append('file', file);
         if (currentSessionId) formData.append('session_id', currentSessionId);
@@ -219,18 +219,18 @@ const ChatWindow = ({ user, sessionId, onSessionChange, onUploadComplete }) => {
                 headers: { 'Content-Type': 'multipart/form-data' },
             });
             if (onUploadComplete) onUploadComplete(response.data);
-            
+
         } catch (err) {
             console.error(err);
             const errorMsg = { role: 'assistant', content: 'Failed to upload file. Please try again.' };
             if (currentSessionId) {
-                 await updateDoc(doc(db, 'chats', currentSessionId), {
-                      messages: arrayUnion(errorMsg),
-                      updatedAt: serverTimestamp()
-                 });
-                 setMessages(prev => [...prev, errorMsg]);
+                await updateDoc(doc(db, 'chats', currentSessionId), {
+                    messages: arrayUnion(errorMsg),
+                    updatedAt: serverTimestamp()
+                });
+                setMessages(prev => [...prev, errorMsg]);
             } else {
-                 setMessages(prev => [...prev, errorMsg]);
+                setMessages(prev => [...prev, errorMsg]);
             }
         } finally {
             setIsUploading(false);
@@ -243,13 +243,13 @@ const ChatWindow = ({ user, sessionId, onSessionChange, onUploadComplete }) => {
             setEditingIdx(-1);
             return;
         }
-        
+
         const newMessages = [...messages];
         newMessages[idx] = { ...newMessages[idx], content: editText };
-        
+
         setMessages(newMessages);
         setEditingIdx(-1);
-        
+
         if (sessionId) {
             try {
                 await updateDoc(doc(db, 'chats', sessionId), {
@@ -281,7 +281,7 @@ const ChatWindow = ({ user, sessionId, onSessionChange, onUploadComplete }) => {
                 justifyContent: 'center'
             }}>
                 <div style={{ width: '100%', maxWidth: '900px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div className="flex items-center gap-3 cursor-pointer" onClick={() => window.location.href = '/'}>
                         <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981' }}></div>
                         <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.5px' }}>ZENTRIX ONLINE</span>
                     </div>
@@ -321,7 +321,7 @@ const ChatWindow = ({ user, sessionId, onSessionChange, onUploadComplete }) => {
                         }}>
                             {/* Edit Action */}
                             {msg.role === 'user' && editingIdx !== idx && (
-                                <button 
+                                <button
                                     onClick={() => { setEditingIdx(idx); setEditText(msg.content); }}
                                     className="opacity-0 group-hover:opacity-100 transition-opacity p-2 text-slate-400 hover:text-white rounded-lg hover:bg-white/5 mt-1"
                                     title="Edit message"
@@ -380,13 +380,13 @@ const ChatWindow = ({ user, sessionId, onSessionChange, onUploadComplete }) => {
                                             }}
                                         />
                                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                                            <button 
+                                            <button
                                                 onClick={() => setEditingIdx(-1)}
                                                 style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: 'white', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, transition: 'all 0.2s' }}
                                                 onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
                                                 onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
                                             >Cancel</button>
-                                            <button 
+                                            <button
                                                 onClick={() => handleSaveEdit(idx)}
                                                 style={{ background: '#3b82f6', border: 'none', color: 'white', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, transition: 'all 0.2s' }}
                                                 onMouseOver={(e) => e.currentTarget.style.background = '#2563eb'}

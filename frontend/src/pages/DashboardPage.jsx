@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Flame, Bot, Plus, MessageSquare, Layers, Code, Database, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Flame, Bot, Plus, MessageSquare, Layers, Code, Database, ChevronLeft, ChevronRight, X, Trash2, Edit2, RotateCw } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { auth, db } from '../firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import NavActions from '../components/NavActions';
 
 const DashboardPage = () => {
     const navigate = useNavigate();
@@ -31,6 +32,12 @@ const DashboardPage = () => {
     const [newFlashcardA, setNewFlashcardA] = useState('');
     const [selectedItem, setSelectedItem] = useState(null); // { type, question, answer, date }
     
+    // Flashcard features state
+    const [showAnswer, setShowAnswer] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editFcId, setEditFcId] = useState(null);
+    const [editFcQ, setEditFcQ] = useState('');
+    const [editFcA, setEditFcA] = useState('');
     // calendar and graph state
     const [currentDate, setCurrentDate] = useState(new Date());
     const [currentGraphDate, setCurrentGraphDate] = useState(new Date());
@@ -244,6 +251,46 @@ const DashboardPage = () => {
         }
     };
 
+    const handleDeleteFlashcard = async (e, id) => {
+        e.stopPropagation();
+        if (!window.confirm("Delete this flashcard?")) return;
+        try {
+            await deleteDoc(doc(db, 'flashcards', id));
+            setAllFlashcards(prev => prev.filter(f => f.id !== id));
+            if (selectedItem && selectedItem.id === id) {
+                setSelectedItem(null);
+            }
+        } catch (err) {
+            console.error("Error deleting flashcard", err);
+        }
+    };
+
+    const openEditFlashcard = (e, fc) => {
+        e.stopPropagation();
+        setEditFcId(fc.id);
+        setEditFcQ(fc.question);
+        setEditFcA(fc.answer);
+        setIsEditModalOpen(true);
+    };
+
+    const handleUpdateFlashcard = async (e) => {
+        e.preventDefault();
+        if (!editFcQ.trim() || !editFcA.trim() || !editFcId) return;
+        try {
+            await updateDoc(doc(db, 'flashcards', editFcId), {
+                question: editFcQ,
+                answer: editFcA
+            });
+            setAllFlashcards(prev => prev.map(f => f.id === editFcId ? { ...f, question: editFcQ, answer: editFcA } : f));
+            if (selectedItem && selectedItem.id === editFcId) {
+                setSelectedItem({ ...selectedItem, question: editFcQ, answer: editFcA });
+            }
+            setIsEditModalOpen(false);
+        } catch (err) {
+            console.error("Error updating flashcard", err);
+        }
+    };
+
     // Filtered data for UI
     const displayQuestions = allQuestions.filter(q => q.date === selectedDate);
     const displayFlashcards = allFlashcards.filter(f => f.date === selectedDate);
@@ -286,15 +333,7 @@ const DashboardPage = () => {
                         Zentrix<span className="text-blue-500">AI</span>
                     </h1>
                 </div>
-                <div className="flex items-center gap-4">
-                    <button 
-                        onClick={() => navigate(isDemoMode ? '/chat?demo=true' : '/chat')} 
-                        className="flex items-center gap-2 bg-blue-600/20 hover:bg-blue-600 text-blue-400 hover:text-white px-5 py-2 rounded-xl transition-all font-medium border border-blue-500/30 hover:border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.15)] hover:shadow-[0_0_20px_rgba(59,130,246,0.4)]"
-                    >
-                        <Bot size={18} />
-                        Chatbot
-                    </button>
-                </div>
+                <NavActions />
             </header>
 
             <main className="flex-1 overflow-y-auto p-4 md:p-8">
@@ -520,7 +559,15 @@ const DashboardPage = () => {
                         
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
                             {displayFlashcards.length > 0 ? displayFlashcards.map((fc) => (
-                                <div key={fc.id} onClick={() => setSelectedItem({ type: 'flashcard', ...fc })} className="bg-gradient-to-br from-slate-900/40 to-slate-950 border border-purple-500/10 hover:border-purple-500/30 rounded-3xl p-6 transition-all group cursor-pointer shadow-xl hover:shadow-purple-500/10 hover:-translate-y-1 flex flex-col items-center justify-center text-center">
+                                <div key={fc.id} onClick={() => { setShowAnswer(false); setSelectedItem({ type: 'flashcard', ...fc }); }} className="bg-gradient-to-br from-slate-900/40 to-slate-950 border border-purple-500/10 hover:border-purple-500/30 rounded-3xl p-6 transition-all group cursor-pointer shadow-xl hover:shadow-purple-500/10 hover:-translate-y-1 flex flex-col items-center justify-center text-center relative overflow-hidden">
+                                    <div className="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button onClick={(e) => openEditFlashcard(e, fc)} className="p-1.5 bg-slate-800 hover:bg-purple-600/30 text-slate-400 hover:text-purple-400 rounded-lg transition-colors">
+                                            <Edit2 size={14} />
+                                        </button>
+                                        <button onClick={(e) => handleDeleteFlashcard(e, fc.id)} className="p-1.5 bg-slate-800 hover:bg-red-600/30 text-slate-400 hover:text-red-400 rounded-lg transition-colors">
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
                                     <div className="p-5 bg-purple-500/10 text-purple-400 rounded-2xl mb-5 group-hover:scale-110 transition-transform shadow-[0_0_15px_rgba(168,85,247,0.15)] group-hover:shadow-[0_0_25px_rgba(168,85,247,0.3)]">
                                         <Layers size={28} />
                                     </div>
@@ -550,9 +597,19 @@ const DashboardPage = () => {
                             <div className={`p-3 rounded-xl ${selectedItem.type === 'question' ? 'bg-blue-500/10 text-blue-400' : 'bg-purple-500/10 text-purple-400'}`}>
                                 {selectedItem.type === 'question' ? <MessageSquare size={24} /> : <Layers size={24} />}
                             </div>
-                            <h2 className="text-2xl font-bold text-white">
-                                {selectedItem.type === 'question' ? 'Question Learned' : 'Flashcard'}
+                            <h2 className="text-2xl font-bold text-white flex-1">
+                                {selectedItem.type === 'question' ? 'Question Learned' : 'Flashcard Study'}
                             </h2>
+                            {selectedItem.type === 'flashcard' && (
+                                <div className="flex gap-2">
+                                    <button onClick={(e) => openEditFlashcard(e, selectedItem)} className="p-2 bg-slate-800 hover:bg-purple-600/30 text-slate-400 hover:text-purple-400 rounded-xl transition-colors">
+                                        <Edit2 size={16} />
+                                    </button>
+                                    <button onClick={(e) => handleDeleteFlashcard(e, selectedItem.id)} className="p-2 bg-slate-800 hover:bg-red-600/30 text-slate-400 hover:text-red-400 rounded-xl transition-colors">
+                                        <Trash2 size={16} />
+                                    </button>
+                                </div>
+                            )}
                         </div>
                         <div className="space-y-6">
                             <div>
@@ -561,12 +618,20 @@ const DashboardPage = () => {
                                     {selectedItem.question}
                                 </div>
                             </div>
-                            <div>
-                                <h3 className="text-sm uppercase tracking-widest text-slate-500 font-bold mb-2">Answer</h3>
-                                <div className="bg-black/20 border border-white/5 rounded-2xl p-5 text-slate-300 text-md leading-relaxed whitespace-pre-wrap">
-                                    {selectedItem.answer}
-                                </div>
-                            </div>
+                            
+                            {selectedItem.type === 'flashcard' && !showAnswer ? (
+                                <button onClick={() => setShowAnswer(true)} className="w-full py-4 border-2 border-dashed border-purple-500/30 hover:border-purple-500/50 rounded-2xl text-purple-400 hover:text-purple-300 font-bold flex flex-col items-center justify-center gap-2 transition-colors bg-purple-500/5 hover:bg-purple-500/10">
+                                    <RotateCw size={24} />
+                                    Click to Reveal Answer
+                                </button>
+                            ) : (
+                                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                                    <h3 className="text-sm uppercase tracking-widest text-slate-500 font-bold mb-2">Answer</h3>
+                                    <div className="bg-black/20 border border-white/5 rounded-2xl p-5 text-slate-300 text-md leading-relaxed whitespace-pre-wrap">
+                                        {selectedItem.answer}
+                                    </div>
+                                </motion.div>
+                            )}
                         </div>
                     </motion.div>
                 </div>
@@ -612,6 +677,50 @@ const DashboardPage = () => {
                             </div>
                             <button type="submit" className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg active:scale-95 mt-4">
                                 Save Flashcard
+                            </button>
+                        </form>
+                    </motion.div>
+                </div>
+            )}
+
+            {/* Edit Flashcard Modal */}
+            {isEditModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md" onClick={() => setIsEditModalOpen(false)}></div>
+                    <motion.div 
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="relative bg-slate-900/80 border border-white/20 backdrop-blur-xl p-8 rounded-3xl max-w-lg w-full shadow-[0_0_50px_rgba(168,85,247,0.15)]"
+                    >
+                        <button onClick={() => setIsEditModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white bg-white/5 hover:bg-white/10 rounded-full p-2 transition-all">
+                            <X size={20} />
+                        </button>
+                        <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
+                            <span className="text-purple-500"><Edit2 size={24} /></span> Edit Flashcard
+                        </h2>
+                        <form onSubmit={handleUpdateFlashcard} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-400 mb-2">Question</label>
+                                <textarea 
+                                    required
+                                    value={editFcQ}
+                                    onChange={e => setEditFcQ(e.target.value)}
+                                    className="w-full bg-black/30 border border-white/10 rounded-xl p-4 text-white placeholder-slate-600 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all"
+                                    rows="2"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-400 mb-2">Answer</label>
+                                <textarea 
+                                    required
+                                    value={editFcA}
+                                    onChange={e => setEditFcA(e.target.value)}
+                                    className="w-full bg-black/30 border border-white/10 rounded-xl p-4 text-white placeholder-slate-600 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all"
+                                    rows="4"
+                                />
+                            </div>
+                            <button type="submit" className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 rounded-xl transition-all shadow-lg active:scale-95 mt-4">
+                                Update Flashcard
                             </button>
                         </form>
                     </motion.div>

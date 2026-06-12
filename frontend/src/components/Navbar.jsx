@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Menu, X, LogOut } from 'lucide-react';
 import { auth } from '../firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
+import NavActions from './NavActions';
 
 const Navbar = () => {
     const [isScrolled, setIsScrolled] = useState(false);
@@ -41,7 +42,7 @@ const Navbar = () => {
     };
 
     return (
-        <nav className={`fixed top-0 w-full z-50 transition-all duration-300 ${isScrolled ? 'bg-[#020617]/80 backdrop-blur-md border-b border-white/5' : 'bg-transparent'}`}>
+        <nav className={`fixed top-0 w-full z-50 transition-all duration-300 ${(isScrolled || location.pathname !== '/') ? 'bg-[#020617]/80 backdrop-blur-md border-b border-white/5' : 'bg-transparent'}`}>
             <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-3 cursor-pointer" onClick={() => scrollToSection('home')}>
                     <img src="/z.png" alt="Zentrix logo" className="h-9 w-9 rounded-md object-cover" />
@@ -61,35 +62,7 @@ const Navbar = () => {
                     ))}
                 </div>
 
-                <div className="hidden md:flex items-center gap-4">
-                    <Link to="/chat" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">AI Bot</Link>
-                    <Link to="/dashboard" className="text-sm font-medium text-slate-300 hover:text-white transition-colors">Dashboard</Link>
-                    
-                    {!user ? (
-                        <Link to="/signin" className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2 px-6 rounded-full transition-all shadow-lg hover:scale-105 ml-4">
-                            Login
-                        </Link>
-                    ) : (
-                        <div className="flex items-center gap-4 ml-4 pl-4 border-l border-white/10">
-                            <div className="flex items-center gap-2">
-                                <div className="w-9 h-9 rounded-full overflow-hidden bg-slate-800 border-2 border-slate-700/50 flex items-center justify-center shrink-0">
-                                    {user.photoURL ? (
-                                        <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                                    ) : (
-                                        <span className="text-white text-xs font-bold">{((user.displayName || user.email) || 'U').charAt(0).toUpperCase()}</span>
-                                    )}
-                                </div>
-                                <span className="text-sm font-semibold text-white tracking-wide">{user.displayName || user.email?.split('@')[0]}</span>
-                            </div>
-                            <button onClick={() => {
-                                localStorage.removeItem('currentChatId');
-                                signOut(auth);
-                            }} className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 hover:text-red-300 text-xs font-semibold py-1.5 px-4 rounded-full transition-all">
-                                Logout
-                            </button>
-                        </div>
-                    )}
-                </div>
+                <NavActions />
 
                 {/* Mobile menu toggle */}
                 <button className="md:hidden text-white" onClick={() => setIsMenuOpen(!isMenuOpen)}>

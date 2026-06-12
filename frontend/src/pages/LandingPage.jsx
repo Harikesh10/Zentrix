@@ -216,39 +216,14 @@ const LandingPage = () => {
 
             {/* FOOTER */}
             <footer className="py-6 px-6 border-t border-white/5 bg-[#020617] text-xs">
-                <div className="max-w-7xl mx-auto grid md:grid-cols-4 gap-6 mb-6">
-                    <div className="col-span-1 md:col-span-1">
-                        <div className="flex items-center gap-2 mb-2">
-                            <img src="/z.png" alt="Zentrix logo" className="h-7 w-7 rounded-md object-cover" />
-                            <h3 className="text-lg font-bold">Zentrix<span className="text-blue-500">AI</span></h3>
-                        </div>
-                        <p className="text-slate-500 leading-relaxed">The ultimate AI study companion for students.</p>
+                <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <div className="flex items-center gap-2">
+                        <img src="/z.png" alt="Zentrix logo" className="h-7 w-7 rounded-md object-cover" />
+                        <h3 className="text-lg font-bold">Zentrix<span className="text-blue-500">AI</span></h3>
                     </div>
-                    <div>
-                        <h4 className="font-semibold mb-3 text-slate-300">Product</h4>
-                        <ul className="space-y-1.5 text-slate-500">
-                            <li className="hover:text-blue-400 cursor-pointer transition-colors">Features</li>
-                            <li className="hover:text-blue-400 cursor-pointer transition-colors">Pricing</li>
-                            <li className="hover:text-blue-400 cursor-pointer transition-colors">Integrations</li>
-                        </ul>
+                    <div className="text-[10px] text-slate-600">
+                        © 2026 Zentrix Inc. All rights reserved.
                     </div>
-                    <div>
-                        <h4 className="font-semibold mb-3 text-slate-300">Company</h4>
-                        <ul className="space-y-1.5 text-slate-500">
-                            <li className="hover:text-blue-400 cursor-pointer transition-colors">About Us</li>
-                            <li className="hover:text-blue-400 cursor-pointer transition-colors">Careers</li>
-                        </ul>
-                    </div>
-                    <div>
-                        <h4 className="font-semibold mb-3 text-slate-300">Legal</h4>
-                        <ul className="space-y-1.5 text-slate-500">
-                            <li className="hover:text-blue-400 cursor-pointer transition-colors">Privacy Policy</li>
-                            <li className="hover:text-blue-400 cursor-pointer transition-colors">Terms</li>
-                        </ul>
-                    </div>
-                </div>
-                <div className="max-w-7xl mx-auto pt-4 border-t border-white/5 text-center text-[10px] text-slate-600">
-                    © 2026 Zentrix Inc. All rights reserved.
                 </div>
             </footer>
         </div>
